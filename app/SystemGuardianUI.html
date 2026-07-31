@@ -1,0 +1,1532 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>System Guardian</title>
+  <style>
+    :root {
+      --canvas: #0b0f12;
+      --sidebar: #0e1317;
+      --surface: #13191e;
+      --surface-raised: #181f25;
+      --surface-soft: #10161a;
+      --line: #263038;
+      --line-soft: #1d262c;
+      --text: #f4f7f8;
+      --text-2: #b6c1c6;
+      --text-3: #7f8d94;
+      --teal: #42d5c0;
+      --teal-strong: #20bea9;
+      --teal-soft: #123a36;
+      --blue: #76a9ff;
+      --blue-soft: #182a43;
+      --amber: #ffbd63;
+      --amber-soft: #3a2b17;
+      --red: #ff7777;
+      --red-soft: #3d2022;
+      --green: #64d7aa;
+      --green-soft: #17342a;
+      --shadow: 0 14px 36px rgba(0, 0, 0, .24);
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      min-width: 1080px;
+      min-height: 700px;
+      overflow: hidden;
+      color: var(--text);
+      background: var(--canvas);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button { font: inherit; }
+    button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+    svg { display: block; }
+    h1, h2, h3, p { margin: 0; }
+    button:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+    .app-shell {
+      display: grid;
+      grid-template-rows: 46px minmax(0, 1fr);
+      height: 100vh;
+      background: var(--canvas);
+    }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 14px;
+      background: #080b0d;
+      border-bottom: 1px solid #171e23;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .title-brand, .title-controls, .window-controls, .title-meta {
+      display: flex;
+      align-items: center;
+    }
+
+    .title-brand { gap: 10px; min-width: 0; }
+    .title-logo {
+      display: grid;
+      place-items: center;
+      width: 27px;
+      height: 27px;
+      border: 1px solid #285f58;
+      border-radius: 7px;
+      color: var(--teal);
+      background: #102b28;
+    }
+
+    .title-brand strong {
+      font-size: 13px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .title-meta {
+      gap: 7px;
+      margin-left: 4px;
+      color: var(--text-3);
+      font-size: 11px;
+    }
+
+    .local-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(100, 215, 170, .1);
+    }
+
+    .title-controls { height: 100%; }
+    .admin-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 28px;
+      padding: 0 10px;
+      margin-right: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 6px;
+      color: var(--text-2);
+      background: var(--surface-soft);
+      font-size: 11px;
+    }
+
+    .admin-state.on { color: var(--green); border-color: #285541; }
+    .window-controls { height: 100%; }
+    .window-button {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      color: #9aa6ab;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .window-button:hover { color: white; background: #1b2227; }
+    .window-button.close:hover { background: #c42b35; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 214px minmax(0, 1fr);
+      min-height: 0;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 18px 12px 14px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .sidebar-label {
+      padding: 0 10px 8px;
+      color: var(--text-3);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 4px;
+    }
+
+    .nav-button {
+      position: relative;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      min-height: 44px;
+      width: 100%;
+      padding: 0 10px 0 7px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: var(--text-2);
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .nav-button:hover { color: var(--text); background: #151c21; }
+    .nav-button.active {
+      color: var(--text);
+      background: #17221f;
+      border-color: #24433f;
+    }
+
+    .nav-button.active::before {
+      content: "";
+      position: absolute;
+      left: -13px;
+      width: 3px;
+      height: 24px;
+      border-radius: 0 3px 3px 0;
+      background: var(--teal);
+    }
+
+    .nav-icon { display: grid; place-items: center; color: var(--text-3); }
+    .nav-button.active .nav-icon, .nav-button:hover .nav-icon { color: var(--teal); }
+    .nav-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .pro-ribbon {
+      display: inline-flex;
+      align-items: center;
+      height: 18px;
+      padding: 0 6px;
+      border-radius: 4px;
+      color: #271a06;
+      background: var(--amber);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: .05em;
+    }
+
+    .sidebar-bottom {
+      margin-top: auto;
+      padding: 14px 10px 2px;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .privacy-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: var(--text-3);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .privacy-row svg { flex: 0 0 auto; margin-top: 1px; color: var(--green); }
+
+    .main {
+      min-width: 0;
+      overflow: auto;
+      scrollbar-color: #334047 transparent;
+      scrollbar-width: thin;
+    }
+
+    .page {
+      display: none;
+      width: 100%;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 30px 34px 46px;
+    }
+
+    .page.active { display: block; }
+
+    .page-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      min-height: 52px;
+      margin-bottom: 22px;
+    }
+
+    .page-kicker {
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .page-header h1 {
+      margin-top: 5px;
+      font-size: 27px;
+      line-height: 1.15;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .page-subtitle {
+      margin-top: 7px;
+      color: var(--text-2);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .last-scan {
+      color: var(--text-3);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: 238px minmax(0, 1fr);
+      min-height: 244px;
+      overflow: hidden;
+      border: 1px solid #2a353c;
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-score {
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: #10171b;
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .score-ring {
+      --score: 0;
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 154px;
+      height: 154px;
+      border-radius: 50%;
+      background: conic-gradient(var(--teal) calc(var(--score) * 1%), #273238 0);
+    }
+
+    .score-ring::before {
+      content: "";
+      position: absolute;
+      inset: 10px;
+      border-radius: 50%;
+      background: #10171b;
+      box-shadow: inset 0 0 0 1px #2b373e;
+    }
+
+    .score-value {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .score-value strong {
+      display: block;
+      font-size: 42px;
+      line-height: 1;
+      font-weight: 750;
+    }
+
+    .score-value span {
+      display: block;
+      margin-top: 7px;
+      color: var(--text-3);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+      padding: 32px 36px;
+    }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--teal);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .status-pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 4px rgba(66, 213, 192, .1);
+    }
+
+    .hero h2 {
+      max-width: 620px;
+      margin-top: 12px;
+      font-size: 25px;
+      line-height: 1.22;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    .hero-description {
+      max-width: 650px;
+      margin-top: 10px;
+      color: var(--text-2);
+      font-size: 13px;
+      line-height: 1.55;
+      overflow-wrap: anywhere;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 112px;
+      height: 38px;
+      padding: 0 15px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: var(--text);
+      background: var(--surface-raised);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .button:hover { filter: brightness(1.08); }
+    .button:disabled { opacity: .42; cursor: default; filter: none; }
+    .button.primary { color: #061411; background: var(--teal); border-color: var(--teal); }
+    .button.secondary { color: var(--text); background: #1b2329; border-color: #344149; }
+    .button.ghost { color: var(--text-2); background: transparent; border-color: var(--line); }
+    .button.danger { color: #fff; background: #ab343d; border-color: #c24a53; }
+    .button.small { min-width: 0; height: 32px; padding: 0 11px; font-size: 11px; }
+    .button.full { width: 100%; }
+
+    .scan-workspace {
+      display: none;
+      grid-column: 1 / -1;
+      grid-template-columns: 238px minmax(0, 1fr);
+      min-height: 244px;
+      background: var(--surface);
+    }
+
+    .hero.scanning > .hero-score,
+    .hero.scanning > .hero-content { display: none; }
+    .hero.scanning .scan-workspace { display: grid; }
+
+    .scanner-visual {
+      position: relative;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: #0f171a;
+      border-right: 1px solid var(--line-soft);
+    }
+
+    .radar {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 158px;
+      height: 158px;
+      border: 1px solid #23524c;
+      border-radius: 50%;
+      background:
+        linear-gradient(90deg, transparent 49.5%, #24423f 50%, transparent 50.5%),
+        linear-gradient(transparent 49.5%, #24423f 50%, transparent 50.5%);
+    }
+
+    .radar::before, .radar::after {
+      content: "";
+      position: absolute;
+      border: 1px solid #27534e;
+      border-radius: 50%;
+    }
+
+    .radar::before { inset: 22px; }
+    .radar::after { inset: 47px; }
+    .radar-sweep {
+      position: absolute;
+      inset: -1px;
+      border-radius: 50%;
+      background: conic-gradient(from 0deg, transparent 0 72%, rgba(66, 213, 192, .26) 92%, rgba(66, 213, 192, .05) 100%);
+      animation: sweep 2.2s linear infinite;
+    }
+
+    .radar-shield {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 54px;
+      height: 54px;
+      border: 1px solid #2f746b;
+      border-radius: 50%;
+      color: var(--teal);
+      background: #12332f;
+      box-shadow: 0 0 28px rgba(66, 213, 192, .18);
+    }
+
+    .scanner-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+      padding: 28px 36px;
+    }
+
+    .scanner-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .scanner-copy h2 { margin-top: 10px; }
+    .scan-percent { color: var(--teal); font-size: 22px; font-weight: 700; }
+    .scan-label {
+      min-height: 22px;
+      margin-top: 11px;
+      color: var(--text-2);
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .progress-track {
+      position: relative;
+      height: 7px;
+      margin-top: 25px;
+      overflow: hidden;
+      border: 1px solid #314048;
+      border-radius: 4px;
+      background: #0c1114;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      border-radius: 3px;
+      background: var(--teal);
+      box-shadow: 0 0 16px rgba(66, 213, 192, .45);
+      transition: width .4s ease;
+    }
+
+    .scan-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 20px;
+      margin-top: 12px;
+      color: var(--text-3);
+      font-size: 10px;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr);
+      align-items: center;
+      min-width: 0;
+      min-height: 76px;
+      padding: 13px;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: var(--surface-soft);
+    }
+
+    .metric-icon {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      color: var(--blue);
+      background: var(--blue-soft);
+    }
+
+    .metric.good .metric-icon { color: var(--green); background: var(--green-soft); }
+    .metric.review .metric-icon { color: var(--amber); background: var(--amber-soft); }
+    .metric.attention .metric-icon { color: var(--red); background: var(--red-soft); }
+    .metric-copy { min-width: 0; }
+    .metric-copy strong {
+      display: block;
+      overflow: hidden;
+      color: var(--text);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .metric-copy span {
+      display: block;
+      margin-top: 4px;
+      overflow: hidden;
+      color: var(--text-3);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) minmax(270px, .75fr);
+      gap: 14px;
+      margin-top: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 57px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .panel-header h2 { font-size: 14px; font-weight: 700; }
+    .panel-header p { margin-top: 3px; color: var(--text-3); font-size: 10px; }
+    .text-button {
+      padding: 5px;
+      border: 0;
+      color: var(--teal);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .check-list { min-height: 268px; }
+    .check-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 66px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .check-row:last-child { border-bottom: 0; }
+    .check-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      color: var(--green);
+      background: var(--green-soft);
+    }
+
+    .check-mark.review { color: var(--amber); background: var(--amber-soft); }
+    .check-mark.attention { color: var(--red); background: var(--red-soft); }
+    .check-mark.pending { color: var(--text-3); background: #20282d; }
+    .check-copy { min-width: 0; }
+    .check-copy strong {
+      display: block;
+      overflow: hidden;
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .check-copy span {
+      display: block;
+      margin-top: 4px;
+      overflow: hidden;
+      color: var(--text-3);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      height: 23px;
+      padding: 0 8px;
+      border: 1px solid #2d5c49;
+      border-radius: 5px;
+      color: var(--green);
+      background: var(--green-soft);
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-chip.review { color: var(--amber); background: var(--amber-soft); border-color: #614a27; }
+    .status-chip.attention { color: var(--red); background: var(--red-soft); border-color: #693336; }
+    .status-chip.pending { color: var(--text-3); background: #20282d; border-color: #303c43; }
+
+    .quick-list { padding: 7px; }
+    .quick-action {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) 18px;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 54px;
+      padding: 8px 9px;
+      border: 0;
+      border-radius: 6px;
+      color: var(--text);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .quick-action:hover { background: #1a2227; }
+    .quick-action .metric-icon { width: 30px; height: 30px; }
+    .quick-action strong { display: block; font-size: 11px; }
+    .quick-action span { display: block; margin-top: 3px; color: var(--text-3); font-size: 9px; }
+    .quick-action > svg { color: var(--text-3); }
+
+    .safe-note {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 9px;
+      margin: 0 14px 14px;
+      padding: 11px;
+      border: 1px solid #24433f;
+      border-radius: 6px;
+      color: var(--text-2);
+      background: #101c1b;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .safe-note svg { color: var(--teal); }
+
+    .report-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .filter-tabs {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-soft);
+    }
+
+    .filter-tab {
+      height: 29px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 5px;
+      color: var(--text-3);
+      background: transparent;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .filter-tab.active { color: var(--text); background: #252e34; }
+    .report-summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .summary-tile {
+      min-height: 86px;
+      padding: 15px;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: var(--surface-soft);
+    }
+
+    .summary-tile span { color: var(--text-3); font-size: 10px; }
+    .summary-tile strong { display: block; margin-top: 8px; font-size: 24px; line-height: 1; }
+    .summary-tile.attention strong { color: var(--red); }
+    .summary-tile.review strong { color: var(--amber); }
+    .summary-tile.good strong { color: var(--green); }
+
+    .issue-list { display: grid; gap: 10px; }
+    .issue-card {
+      display: grid;
+      grid-template-columns: 38px minmax(0, 1fr) auto;
+      gap: 14px;
+      min-width: 0;
+      padding: 17px;
+      border: 1px solid var(--line-soft);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .issue-main { min-width: 0; }
+    .issue-title-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .issue-title-row h3 {
+      min-width: 0;
+      font-size: 13px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .category {
+      color: var(--text-3);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .issue-summary {
+      margin-top: 7px;
+      color: var(--text-2);
+      font-size: 11px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .issue-detail {
+      margin-top: 8px;
+      color: var(--text-3);
+      font-size: 10px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .recommended {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      margin-top: 11px;
+      color: #cbd5d8;
+      font-size: 10px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .recommended svg { flex: 0 0 auto; margin-top: 1px; color: var(--teal); }
+    .issue-action { align-self: center; }
+    .issue-action.done { color: var(--green); font-size: 11px; font-weight: 700; white-space: nowrap; }
+
+    .empty-report {
+      display: grid;
+      place-items: center;
+      min-height: 360px;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .empty-report .metric-icon { width: 48px; height: 48px; margin: 0 auto 14px; }
+    .empty-report h2 { font-size: 16px; }
+    .empty-report p { max-width: 390px; margin: 8px auto 18px; color: var(--text-3); font-size: 11px; line-height: 1.5; }
+
+    .side-section { padding: 17px; }
+    .side-section h3 { font-size: 12px; }
+    .side-section > p { margin-top: 7px; color: var(--text-3); font-size: 10px; line-height: 1.5; }
+    .safety-list { display: grid; gap: 10px; margin-top: 14px; }
+    .safety-item { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; color: var(--text-2); font-size: 10px; line-height: 1.4; }
+    .safety-item svg { color: var(--green); }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 46px 0 0;
+      z-index: 20;
+      display: none;
+      place-items: center;
+      padding: 28px;
+      background: rgba(4, 7, 9, .78);
+    }
+
+    .modal-backdrop.open { display: grid; }
+    .modal {
+      width: min(470px, 100%);
+      border: 1px solid #334049;
+      border-radius: 8px;
+      background: #151b20;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .55);
+    }
+
+    .modal-head { display: flex; align-items: center; gap: 12px; padding: 18px; border-bottom: 1px solid var(--line-soft); }
+    .modal-head h2 { font-size: 15px; }
+    .modal-head p { margin-top: 4px; color: var(--text-3); font-size: 10px; }
+    .modal-body { padding: 18px; }
+    .modal-body p { color: var(--text-2); font-size: 11px; line-height: 1.55; overflow-wrap: anywhere; }
+    .modal-warning { margin-top: 12px; padding: 11px; border: 1px solid #554427; border-radius: 6px; color: #e4c38b; background: #2a2217; font-size: 10px; line-height: 1.45; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line-soft); }
+
+    .toast-stack { position: fixed; right: 20px; bottom: 20px; z-index: 30; display: grid; gap: 8px; width: 330px; }
+    .toast {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) 24px;
+      align-items: start;
+      gap: 9px;
+      padding: 12px;
+      border: 1px solid #31564c;
+      border-radius: 7px;
+      color: var(--text-2);
+      background: #14221f;
+      box-shadow: var(--shadow);
+      font-size: 10px;
+      line-height: 1.45;
+      animation: toastIn .22s ease-out;
+    }
+
+    .toast > svg { color: var(--green); }
+    .toast-close { width: 22px; height: 22px; padding: 0; border: 0; color: var(--text-3); background: transparent; cursor: pointer; }
+
+    @keyframes sweep { to { transform: rotate(360deg); } }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    @media (max-width: 1180px) {
+      .workspace { grid-template-columns: 76px minmax(0, 1fr); }
+      .sidebar { padding-inline: 10px; }
+      .sidebar-label, .nav-text, .pro-ribbon, .sidebar-bottom { display: none; }
+      .nav-button { grid-template-columns: 1fr; padding: 0; }
+      .nav-button.active::before { left: -11px; }
+      .page { padding-inline: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="titlebar" id="titlebar">
+      <div class="title-brand">
+        <div class="title-logo" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.8-2.8 8.2-7 10-4.2-1.8-7-5.2-7-10V6l7-3Z" stroke="currentColor" stroke-width="2"/><path d="m8.8 12.2 2.1 2 4.5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <strong>System Guardian</strong>
+        <div class="title-meta"><span class="local-dot"></span><span>Runs locally</span></div>
+      </div>
+      <div class="title-controls">
+        <div id="adminState" class="admin-state" title="Permission level">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="2"/></svg>
+          <span>Standard access</span>
+        </div>
+        <div class="window-controls">
+          <button id="minimizeWindow" class="window-button" type="button" aria-label="Minimize"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 12h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+          <button id="maximizeWindow" class="window-button" type="button" aria-label="Maximize"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="5" width="14" height="14" rx="1" stroke="currentColor" stroke-width="2"/></svg></button>
+          <button id="closeWindow" class="window-button close" type="button" aria-label="Close"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <div class="sidebar-label">Workspace</div>
+        <nav class="nav-list" aria-label="Primary navigation">
+          <button class="nav-button active" type="button" data-page="overview" aria-label="Overview">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg></span>
+            <span class="nav-text">Overview</span>
+          </button>
+          <button class="nav-button" type="button" data-page="report" aria-label="Health report">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 3h9l4 4v14H6V3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M15 3v5h4M9 13h7M9 17h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            <span class="nav-text">Health report</span>
+          </button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="privacy-row">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.8-2.8 8.2-7 10-4.2-1.8-7-5.2-7-10V6l7-3Z" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Scan reports stay on this PC unless you choose to share them.</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section id="overviewPage" class="page active">
+          <header class="page-header">
+            <div>
+              <div class="page-kicker">PC health</div>
+              <h1>System overview</h1>
+              <p id="deviceLine" class="page-subtitle">Ready to check this Windows PC.</p>
+            </div>
+            <div id="lastScan" class="last-scan">No scan completed yet</div>
+          </header>
+
+          <article id="hero" class="hero">
+            <div class="hero-score">
+              <div id="scoreRing" class="score-ring" style="--score:0">
+                <div class="score-value"><strong id="scoreValue">--</strong><span>Health score</span></div>
+              </div>
+            </div>
+            <div class="hero-content">
+              <div id="heroStatus" class="status-line"><span class="status-pulse"></span><span>Ready to scan</span></div>
+              <h2 id="heroTitle">See what is slowing down or destabilizing your PC</h2>
+              <p id="heroDescription" class="hero-description">Check the important parts of Windows in one place, then resolve findings with clear explanations and trusted repair tools.</p>
+              <div class="hero-actions">
+                <button id="scanButton" class="button primary" type="button">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="m20 20-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  <span>Scan this PC</span>
+                </button>
+                <button id="viewReportButton" class="button secondary" type="button" disabled>View report</button>
+              </div>
+            </div>
+            <div class="scan-workspace">
+              <div class="scanner-visual">
+                <div class="radar">
+                  <span class="radar-sweep"></span>
+                  <span class="radar-shield"><svg width="27" height="27" viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.8-2.8 8.2-7 10-4.2-1.8-7-5.2-7-10V6l7-3Z" stroke="currentColor" stroke-width="2"/></svg></span>
+                </div>
+              </div>
+              <div class="scanner-copy">
+                <div class="scanner-top">
+                  <div>
+                    <div class="status-line"><span class="status-pulse"></span><span>Scan running</span></div>
+                    <h2>Checking your system</h2>
+                  </div>
+                  <strong id="scanPercent" class="scan-percent">0%</strong>
+                </div>
+                <div id="scanLabel" class="scan-label">Starting the Windows health scan...</div>
+                <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                  <div id="progressBar" class="progress-bar"></div>
+                </div>
+                <div class="scan-foot"><span>Keep System Guardian open while the scan runs.</span><span>Reports remain on this PC</span></div>
+              </div>
+            </div>
+          </article>
+
+          <section id="metrics" class="metrics"></section>
+
+          <div class="dashboard-grid">
+            <section class="panel">
+              <header class="panel-header">
+                <div><h2>Important checks</h2><p id="checkSummary">Run a scan to review Windows health.</p></div>
+                <button class="text-button" type="button" data-go-report>View full report</button>
+              </header>
+              <div id="checkList" class="check-list"></div>
+            </section>
+
+            <aside class="panel">
+              <header class="panel-header"><div><h2>Quick actions</h2><p>Trusted Windows tools</p></div></header>
+              <div class="quick-list">
+                <button class="quick-action" type="button" data-native-action="windows-update">
+                  <span class="metric-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 1 0-2.3 5.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M20 5v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                  <span><strong>Windows Update</strong><span>Check official updates</span></span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="quick-action" type="button" data-native-action="storage">
+                  <span class="metric-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><ellipse cx="12" cy="5" rx="8" ry="3" stroke="currentColor" stroke-width="2"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7" stroke="currentColor" stroke-width="2"/></svg></span>
+                  <span><strong>Storage cleanup</strong><span>Windows recommendations</span></span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button class="quick-action" type="button" data-native-action="startup">
+                  <span class="metric-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16H5V4Z" stroke="currentColor" stroke-width="2"/><path d="m10 8 5 4-5 4V8Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></span>
+                  <span><strong>Startup apps</strong><span>Review sign-in load</span></span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
+              <div class="safe-note">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.8-2.8 8.2-7 10-4.2-1.8-7-5.2-7-10V6l7-3Z" stroke="currentColor" stroke-width="2"/></svg>
+                <span>No registry cleaners, unknown debloat scripts, or third-party driver updaters.</span>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="reportPage" class="page">
+          <header class="page-header">
+            <div>
+              <div class="page-kicker">Detailed results</div>
+              <h1>System health report</h1>
+              <p class="page-subtitle">Plain-English findings, what they mean, and the safest next step.</p>
+            </div>
+            <button id="reportScanButton" class="button primary" type="button">Run new scan</button>
+          </header>
+          <div id="reportContent"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="repairModal" class="modal-backdrop" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <header class="modal-head">
+        <div class="metric-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L4 17v3h3l5.5-5.5a4 4 0 0 0 5.2-5.2l-2.6 2.6-3-3 2.6-2.6Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></div>
+        <div><h2 id="modalTitle">Resolve this issue</h2><p id="modalCategory">Trusted Windows action</p></div>
+      </header>
+      <div class="modal-body">
+        <p id="modalDescription"></p>
+        <div id="modalWarning" class="modal-warning"></div>
+      </div>
+      <footer class="modal-actions">
+        <button id="cancelRepair" class="button ghost" type="button">Cancel</button>
+        <button id="confirmRepair" class="button primary" type="button">Continue</button>
+      </footer>
+    </section>
+  </div>
+
+  <div id="toastStack" class="toast-stack"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var icon = {
+        check: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m5 12.5 4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+        alert: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 3 21 20H3L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v5M12 17h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+        info: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+        clock: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+        close: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+      };
+
+      var demoChecks = [
+        { id: "windows-update", name: "Windows Update", category: "Updates", status: "attention", summary: "2 important updates are waiting.", detail: "Keeping Windows current improves security and stability.", action: "Open Windows Update, install the pending updates, then restart when convenient.", actionLabel: "Open Update", fixable: true },
+        { id: "defender", name: "Microsoft Defender", category: "Security", status: "good", summary: "Microsoft Defender is protecting this PC.", detail: "Antivirus, real-time protection, and security intelligence look current.", action: "No action needed.", actionLabel: "Open Security", fixable: false },
+        { id: "storage", name: "Storage space", category: "Performance", status: "review", summary: "Temporary files can be reviewed.", detail: "Windows cleanup recommendations may free about 3.2 GB.", action: "Review Windows cleanup recommendations before removing temporary files.", actionLabel: "Clean Storage", fixable: true },
+        { id: "startup", name: "Startup apps", category: "Performance", status: "review", summary: "14 apps may start with Windows.", detail: "A large startup list can make sign-in feel slower.", action: "Review Startup Apps and disable only items you recognize and do not need immediately.", actionLabel: "Review Startup", fixable: true },
+        { id: "devices", name: "Devices and drivers", category: "Stability", status: "good", summary: "Windows reports no device errors.", detail: "Device Manager returned no active error codes.", action: "No action needed.", actionLabel: "Open Devices", fixable: false },
+        { id: "restart", name: "Restart status", category: "Stability", status: "good", summary: "No restart is pending.", detail: "Windows is not reporting unfinished restart work.", action: "No action needed.", actionLabel: "Restart PC", fixable: false },
+        { id: "core-services", name: "Core Windows services", category: "Stability", status: "good", summary: "Core Windows services are running.", detail: "Windows Event Log and Windows Management Instrumentation are active.", action: "No action needed.", actionLabel: "Repair Windows", fixable: false }
+      ];
+
+      var state = {
+        page: "overview",
+        scan: "idle",
+        progress: 0,
+        scanLabel: "Starting the Windows health scan...",
+        report: null,
+        filter: "all",
+        pendingFix: null,
+        fixed: {},
+        hostConnected: false,
+        demoTimer: null
+      };
+
+      function byId(id) { return document.getElementById(id); }
+      function escapeHtml(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+      }
+
+      function sendHost(payload) {
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.postMessage(typeof payload === "string" ? payload : JSON.stringify(payload));
+          return true;
+        }
+        return false;
+      }
+
+      function setPage(page) {
+        state.page = page;
+        document.querySelectorAll(".page").forEach(function (node) {
+          node.classList.toggle("active", node.id === page + "Page");
+        });
+        document.querySelectorAll("[data-page]").forEach(function (button) {
+          button.classList.toggle("active", button.getAttribute("data-page") === page);
+        });
+        if (page === "report") renderReport();
+      }
+
+      function statusLabel(status) {
+        if (status === "attention") return "Needs attention";
+        if (status === "review") return "Review";
+        if (status === "good") return "Looks good";
+        return "Not scanned";
+      }
+
+      function mark(status) {
+        if (status === "good") return icon.check;
+        if (status === "attention") return icon.alert;
+        if (status === "review") return icon.info;
+        return icon.clock;
+      }
+
+      function actionLevel(id) {
+        if (id === "restart") return 3;
+        if (id === "core-services") return 2;
+        if (["windows-update", "storage", "startup", "devices", "defender"].indexOf(id) !== -1) return 1;
+        return 0;
+      }
+
+      function getCounts() {
+        var checks = state.report ? state.report.checks : [];
+        return {
+          attention: checks.filter(function (item) { return item.status === "attention"; }).length,
+          review: checks.filter(function (item) { return item.status === "review"; }).length,
+          good: checks.filter(function (item) { return item.status === "good"; }).length
+        };
+      }
+
+      function renderOverview() {
+        var scanning = state.scan === "scanning";
+        var hero = byId("hero");
+        hero.classList.toggle("scanning", scanning);
+        byId("scanButton").disabled = scanning;
+        byId("reportScanButton").disabled = scanning;
+        byId("viewReportButton").disabled = !state.report;
+        byId("scanPercent").textContent = Math.round(state.progress) + "%";
+        byId("progressBar").style.width = Math.round(state.progress) + "%";
+        byId("scanLabel").textContent = state.scanLabel;
+        byId("progressBar").parentElement.setAttribute("aria-valuenow", String(Math.round(state.progress)));
+
+        if (!state.report) {
+          byId("scoreRing").style.setProperty("--score", "0");
+          byId("scoreValue").textContent = "--";
+          byId("heroStatus").className = "status-line";
+          byId("heroStatus").innerHTML = '<span class="status-pulse"></span><span>Ready to scan</span>';
+          byId("heroTitle").textContent = "See what is slowing down or destabilizing your PC";
+          byId("heroDescription").textContent = "Check the important parts of Windows in one place, then resolve findings with clear explanations and trusted repair tools.";
+          byId("lastScan").textContent = "No scan completed yet";
+        } else {
+          var counts = getCounts();
+          var score = Number(state.report.score || 0);
+          byId("scoreRing").style.setProperty("--score", String(score));
+          byId("scoreValue").textContent = String(score);
+          byId("heroStatus").className = "status-line";
+          byId("heroStatus").innerHTML = '<span class="status-pulse"></span><span>' + (counts.attention ? "Action recommended" : counts.review ? "A few items to review" : "System looks healthy") + "</span>";
+          byId("heroTitle").textContent = counts.attention ? "Your PC has " + counts.attention + " important finding" + (counts.attention === 1 ? "" : "s") : counts.review ? "Your PC is healthy with a few recommendations" : "Your PC looks healthy";
+          byId("heroDescription").textContent = counts.attention ? "Start with the highest-priority finding. Each action explains what Windows will do before anything opens or changes." : "The important Windows checks completed without finding a critical problem.";
+          var date = new Date(state.report.generatedAt);
+          byId("lastScan").textContent = isNaN(date.getTime()) ? "Latest scan complete" : "Scanned " + date.toLocaleString();
+        }
+
+        renderMetrics();
+        renderCheckList();
+      }
+
+      function renderMetrics() {
+        var counts = getCounts();
+        var checks = state.report ? state.report.checks : [];
+        function categoryStatus(category) {
+          var group = checks.filter(function (item) { return item.category === category; });
+          if (!group.length) return "pending";
+          if (group.some(function (item) { return item.status === "attention"; })) return "attention";
+          if (group.some(function (item) { return item.status === "review"; })) return "review";
+          return "good";
+        }
+        var items = [
+          { label: "Security", detail: state.report ? statusLabel(categoryStatus("Security")) : "Not scanned", status: categoryStatus("Security"), glyph: icon.check },
+          { label: "Updates", detail: state.report ? statusLabel(categoryStatus("Updates")) : "Not scanned", status: categoryStatus("Updates"), glyph: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' },
+          { label: "Performance", detail: state.report ? statusLabel(categoryStatus("Performance")) : "Not scanned", status: categoryStatus("Performance"), glyph: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 17a8 8 0 1 1 16 0M12 13l4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' },
+          { label: "Stability", detail: state.report ? statusLabel(categoryStatus("Stability")) : "Not scanned", status: categoryStatus("Stability"), glyph: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 15h4l2-7 4 11 2-6h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' }
+        ];
+        byId("metrics").innerHTML = items.map(function (item) {
+          return '<article class="metric ' + item.status + '"><span class="metric-icon">' + item.glyph + '</span><span class="metric-copy"><strong>' + item.label + '</strong><span>' + escapeHtml(item.detail) + '</span></span></article>';
+        }).join("");
+        byId("checkSummary").textContent = !state.report ? "Run a scan to review Windows health." : counts.attention + " need attention, " + counts.review + " to review, " + counts.good + " look good.";
+      }
+
+      function renderCheckList() {
+        var checks = state.report ? state.report.checks.slice(0, 5) : [
+          { name: "Windows Update", summary: "Waiting for scan", status: "pending" },
+          { name: "Microsoft Defender", summary: "Waiting for scan", status: "pending" },
+          { name: "Storage space", summary: "Waiting for scan", status: "pending" },
+          { name: "Devices and drivers", summary: "Waiting for scan", status: "pending" }
+        ];
+        byId("checkList").innerHTML = checks.map(function (item) {
+          return '<div class="check-row"><span class="check-mark ' + item.status + '">' + mark(item.status) + '</span><span class="check-copy"><strong>' + escapeHtml(item.name) + '</strong><span>' + escapeHtml(item.summary) + '</span></span><span class="status-chip ' + item.status + '">' + statusLabel(item.status) + '</span></div>';
+        }).join("");
+      }
+
+      function startScan() {
+        if (state.demoTimer) clearInterval(state.demoTimer);
+        state.scan = "scanning";
+        state.report = null;
+        state.fixed = {};
+        state.progress = 2;
+        state.scanLabel = "Starting the Windows health scan...";
+        setPage("overview");
+        renderOverview();
+        if (!sendHost({ type: "scan:start" }) || !state.hostConnected) startDemoScan();
+      }
+
+      function startDemoScan() {
+        var steps = [
+          "Checking Windows Update",
+          "Reading Microsoft Defender status",
+          "Measuring available storage",
+          "Reviewing startup load",
+          "Checking devices and drivers",
+          "Checking restart status",
+          "Verifying core Windows services"
+        ];
+        var started = Date.now();
+        state.demoTimer = setInterval(function () {
+          var elapsed = Date.now() - started;
+          state.progress = Math.min(98, 3 + elapsed / 58);
+          var index = Math.min(steps.length - 1, Math.floor(state.progress / (100 / steps.length)));
+          state.scanLabel = steps[index];
+          renderOverview();
+          if (state.progress >= 98) {
+            clearInterval(state.demoTimer);
+            state.demoTimer = null;
+            completeScan({ generatedAt: new Date().toISOString(), deviceName: "This PC", windowsVersion: "Windows", score: 70, checks: demoChecks });
+          }
+        }, 120);
+      }
+
+      function completeScan(report) {
+        if (state.demoTimer) {
+          clearInterval(state.demoTimer);
+          state.demoTimer = null;
+        }
+        state.progress = 100;
+        state.scan = "complete";
+        state.report = {
+          generatedAt: report.generatedAt || report.GeneratedAt,
+          deviceName: report.deviceName || report.DeviceName,
+          windowsVersion: report.windowsVersion || report.WindowsVersion,
+          score: report.score == null ? report.Score : report.score,
+          checks: (report.checks || report.Checks || []).map(function (item) {
+            return {
+              id: item.id || item.Id,
+              name: item.name || item.Name,
+              category: item.category || item.Category,
+              status: item.status || item.Status,
+              summary: item.summary || item.Summary,
+              detail: item.detail || item.Detail,
+              action: item.action || item.Action,
+              actionLabel: item.actionLabel || item.ActionLabel,
+              fixable: item.fixable == null ? item.Fixable : item.fixable,
+              automationLevel: item.automationLevel == null ? (item.AutomationLevel == null ? actionLevel(item.id || item.Id) : item.AutomationLevel) : item.automationLevel,
+              evidenceLevel: item.evidenceLevel || item.EvidenceLevel || "Microsoft supported",
+              verification: item.verification || item.Verification || "Run a fresh scan after completing the action."
+            };
+          })
+        };
+        if (state.report.deviceName) byId("deviceLine").textContent = state.report.deviceName + " · " + (state.report.windowsVersion || "Windows");
+        renderOverview();
+        renderReport();
+        showToast("Scan complete. Your health report is ready.");
+      }
+
+      function renderReport() {
+        var container = byId("reportContent");
+        if (!state.report) {
+          container.innerHTML = '<section class="panel empty-report"><div><span class="metric-icon">' + icon.info + '</span><h2>No report yet</h2><p>Run a system scan to create a detailed, plain-English health report.</p><button class="button primary" type="button" data-empty-scan>Scan this PC</button></div></section>';
+          var emptyButton = container.querySelector("[data-empty-scan]");
+          if (emptyButton) emptyButton.addEventListener("click", startScan);
+          return;
+        }
+        var counts = getCounts();
+        var checks = state.report.checks.filter(function (item) {
+          if (state.filter === "action") return item.status === "attention" || item.status === "review";
+          if (state.filter === "good") return item.status === "good";
+          return true;
+        });
+        container.innerHTML =
+          '<div class="report-summary">' +
+            '<article class="summary-tile attention"><span>Need attention</span><strong>' + counts.attention + '</strong></article>' +
+            '<article class="summary-tile review"><span>Need review</span><strong>' + counts.review + '</strong></article>' +
+            '<article class="summary-tile good"><span>Looks good</span><strong>' + counts.good + '</strong></article>' +
+          '</div>' +
+          '<div class="report-toolbar"><div class="filter-tabs" role="tablist">' +
+            '<button class="filter-tab ' + (state.filter === "all" ? "active" : "") + '" type="button" data-filter="all">All checks</button>' +
+            '<button class="filter-tab ' + (state.filter === "action" ? "active" : "") + '" type="button" data-filter="action">Needs action</button>' +
+            '<button class="filter-tab ' + (state.filter === "good" ? "active" : "") + '" type="button" data-filter="good">Looks good</button>' +
+          '</div><span class="last-scan">' + checks.length + " result" + (checks.length === 1 ? "" : "s") + '</span></div>' +
+          '<div class="issue-list">' + checks.map(renderIssue).join("") + '</div>';
+
+        container.querySelectorAll("[data-filter]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            state.filter = button.getAttribute("data-filter");
+            renderReport();
+          });
+        });
+        container.querySelectorAll("[data-fix-id]").forEach(function (button) {
+          button.addEventListener("click", function () { openRepair(button.getAttribute("data-fix-id")); });
+        });
+      }
+
+      function renderIssue(item) {
+        var done = state.fixed[item.id];
+        var action = "";
+        if (done) action = '<span class="issue-action done">' + icon.check + ' Opened</span>';
+        else if (item.fixable && item.status !== "good") action = '<button class="button secondary small issue-action" type="button" data-fix-id="' + escapeHtml(item.id) + '">' + escapeHtml(item.actionLabel || "Resolve") + '</button>';
+        return '<article class="issue-card">' +
+          '<span class="check-mark ' + item.status + '">' + mark(item.status) + '</span>' +
+          '<div class="issue-main"><div class="issue-title-row"><h3>' + escapeHtml(item.name) + '</h3><span class="category">' + escapeHtml(item.category) + '</span><span class="status-chip ' + item.status + '">' + statusLabel(item.status) + '</span></div>' +
+          '<p class="issue-summary">' + escapeHtml(item.summary) + '</p>' +
+          '<p class="issue-detail">' + escapeHtml(item.detail) + '</p>' +
+          '<div class="recommended">' + icon.check + '<span><strong>Recommended:</strong> ' + escapeHtml(item.action) + '</span></div></div>' +
+          action + '</article>';
+      }
+
+      function openRepair(id) {
+        var item = state.report && state.report.checks.find(function (check) { return check.id === id; });
+        if (!item) {
+          sendHost({ type: "fix:run", id: id });
+          return;
+        }
+        state.pendingFix = item;
+        byId("modalTitle").textContent = item.actionLabel || "Resolve this issue";
+        var level = Number(item.automationLevel || 0);
+        var levelLabel = level === 3 ? "Disruptive action" : level === 2 ? "Administrator repair" : level === 1 ? "Reversible action" : "Read-only action";
+        byId("modalCategory").textContent = item.name + " · " + levelLabel;
+        byId("modalDescription").textContent = item.action;
+        var warning = id === "restart" ? "Save your work first. Windows will ask again before the restart is scheduled." :
+          id === "core-services" ? "System Guardian will run Microsoft DISM and SFC without opening a terminal. Keep the app open until both checks finish." :
+          "System Guardian will open the official Windows tool for this action. You remain in control. " + item.verification;
+        byId("modalWarning").textContent = warning;
+        byId("confirmRepair").textContent = item.actionLabel || "Continue";
+        byId("repairModal").classList.add("open");
+        byId("repairModal").setAttribute("aria-hidden", "false");
+      }
+
+      function closeRepair() {
+        state.pendingFix = null;
+        byId("repairModal").classList.remove("open");
+        byId("repairModal").setAttribute("aria-hidden", "true");
+      }
+
+      function confirmRepair() {
+        if (!state.pendingFix) return;
+        var id = state.pendingFix.id;
+        if (!sendHost({ type: "fix:run", id: id })) {
+          state.fixed[id] = true;
+          showToast("Preview mode: the trusted Windows action would open here.");
+          closeRepair();
+          renderReport();
+        } else {
+          byId("confirmRepair").disabled = true;
+          byId("confirmRepair").textContent = id === "core-services" ? "Starting repair..." : "Opening...";
+        }
+      }
+
+      function showToast(message) {
+        var toast = document.createElement("div");
+        toast.className = "toast";
+        toast.innerHTML = icon.check + '<span>' + escapeHtml(message) + '</span><button class="toast-close" type="button" aria-label="Dismiss">' + icon.close + '</button>';
+        byId("toastStack").appendChild(toast);
+        toast.querySelector("button").addEventListener("click", function () { toast.remove(); });
+        window.setTimeout(function () { if (toast.parentNode) toast.remove(); }, 5200);
+      }
+
+      function onHostMessage(event) {
+        var message = event.data;
+        if (typeof message === "string") {
+          try { message = JSON.parse(message); } catch (error) { return; }
+        }
+        if (!message || !message.type) return;
+        var payload = message.payload || {};
+        if (message.type === "host:ready") {
+          state.hostConnected = true;
+          byId("deviceLine").textContent = (payload.deviceName || "This PC") + " · Ready for a local scan";
+          byId("adminState").classList.toggle("on", !!payload.isAdmin);
+          byId("adminState").querySelector("span").textContent = payload.isAdmin ? "Administrator" : "Standard access";
+        }
+        if (message.type === "scan:progress") {
+          state.progress = Math.max(state.progress, Number(payload.progress || 0));
+          state.scanLabel = payload.label || state.scanLabel;
+          renderOverview();
+        }
+        if (message.type === "scan:complete") completeScan(payload);
+        if (message.type === "scan:error") {
+          state.scan = "idle";
+          renderOverview();
+          showToast("The scan could not finish: " + (payload.message || "Unknown error"));
+        }
+        if (message.type === "fix:complete") {
+          state.fixed[payload.id] = true;
+          byId("confirmRepair").disabled = false;
+          closeRepair();
+          renderReport();
+          showToast((payload.message || "The Windows action opened.") + (payload.verification ? " " + payload.verification : ""));
+        }
+        if (message.type === "fix:progress") {
+          byId("confirmRepair").disabled = true;
+          byId("confirmRepair").textContent = "Repairing...";
+          byId("modalWarning").textContent = payload.message || "Repair in progress. Keep System Guardian open.";
+        }
+        if (message.type === "fix:error" || message.type === "fix:cancelled") {
+          byId("confirmRepair").disabled = false;
+          closeRepair();
+          if (message.type === "fix:error") showToast("The action could not be opened: " + (payload.message || "Unknown error"));
+        }
+      }
+
+      document.querySelectorAll("[data-page]").forEach(function (button) {
+        button.addEventListener("click", function () { setPage(button.getAttribute("data-page")); });
+      });
+      document.querySelectorAll("[data-go-report]").forEach(function (button) {
+        button.addEventListener("click", function () { setPage("report"); });
+      });
+      document.querySelectorAll("[data-native-action]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var id = button.getAttribute("data-native-action");
+          var item = state.report && state.report.checks.find(function (check) { return check.id === id; });
+          if (item) openRepair(id);
+          else if (!sendHost({ type: "fix:run", id: id })) showToast("Preview mode: this opens the trusted Windows tool in the app.");
+        });
+      });
+
+      byId("scanButton").addEventListener("click", startScan);
+      byId("reportScanButton").addEventListener("click", startScan);
+      byId("viewReportButton").addEventListener("click", function () { setPage("report"); });
+      byId("cancelRepair").addEventListener("click", closeRepair);
+      byId("confirmRepair").addEventListener("click", confirmRepair);
+      byId("repairModal").addEventListener("mousedown", function (event) { if (event.target === byId("repairModal")) closeRepair(); });
+      byId("minimizeWindow").addEventListener("click", function () { sendHost("window:minimize"); });
+      byId("maximizeWindow").addEventListener("click", function () { sendHost("window:maximize"); });
+      byId("closeWindow").addEventListener("click", function () { sendHost("window:close"); });
+      byId("titlebar").addEventListener("mousedown", function (event) {
+        if (!event.target.closest("button")) sendHost("window:drag");
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape") closeRepair();
+      });
+      if (window.chrome && window.chrome.webview) window.chrome.webview.addEventListener("message", onHostMessage);
+
+      renderOverview();
+      renderReport();
+      sendHost({ type: "app:ready" });
+    }());
+  </script>
+</body>
+</html>

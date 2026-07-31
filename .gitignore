@@ -1,0 +1,36 @@
+# Local reports and runtime data
+Reports/
+backend/data/
+*.log
+SystemGuardianWebHost-error.log
+SystemGuardian-error.log
+
+# Local screenshots from testing
+*.png
+
+# Old local builds/backups that are not the current distributable
+SystemGuardianFrontend.exe
+SystemGuardianWinFormsBackup.exe
+Release/SystemGuardian-v1.0.0.zip
+Release/SystemGuardian-Backend-v1.0.0.zip
+
+# Build/temp folders
+bin/
+obj/
+.vs/
+.vscode/
+Debug/
+Release/tmp/
+Temp/
+
+# Node/Next artifacts if UI source is copied in later
+node_modules/
+.next/
+out/
+dist/
+
+# OS/editor noise
+Thumbs.db
+Desktop.ini
+*.user
+*.suo
