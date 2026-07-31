@@ -161,6 +161,3 @@ Quick script:
 .\scripts\push-to-github.ps1 -RemoteUrl "https://github.com/YOUR-USERNAME/YOUR-REPO.git"
 ```
 
-## Branding Note
-
-This app is inspired by modern security dashboards, but it does not use Malwarebytes code, branding, icons, engine, signatures, or proprietary scanning technology.
