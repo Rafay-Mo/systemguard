@@ -147,17 +147,3 @@ docs\Windows-Optimization-Repair-Guide.md
 docs\REPAIR-ENGINE.md
 ```
 
-## GitHub Push
-
-See:
-
-```text
-docs\GITHUB_PUSH.md
-```
-
-Quick script:
-
-```powershell
-.\scripts\push-to-github.ps1 -RemoteUrl "https://github.com/YOUR-USERNAME/YOUR-REPO.git"
-```
-
