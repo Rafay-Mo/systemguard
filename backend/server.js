@@ -402,7 +402,7 @@ async function handle(req, res) {
       return json(res, 200, {
         latestVersion: "1.0.0",
         updateRequired: false,
-        downloadUrl: "https://github.com/your-org/system-guardian/releases",
+        downloadUrl: "https://github.com/Rafay-Mo/systemguard/releases",
         notes: "Initial System Guardian release."
       });
     }

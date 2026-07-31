@@ -55,4 +55,4 @@ node .\scripts\preview-ui.js
 
 ## Current Product Boundary
 
-The desktop app works locally without the backend. The backend is an MVP for future accounts, report sync, and repair plans. Any integration must preserve the local action whitelist and require approval in the desktop host.
+The desktop app works locally without the backend. The backend is reserved for future accounts, report sync, and repair plans. Any integration must preserve the local action whitelist and require approval in the desktop host.

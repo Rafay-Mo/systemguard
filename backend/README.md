@@ -1,10 +1,9 @@
 # System Guardian Backend
 
-Dependency-free backend MVP for future accounts, report sync, and repair plans. The current desktop release does not require or connect to this service.
+Optional local service for future account, report-sync, and repair-plan work. The current desktop release does not require or connect to this service.
 
 ```bat
-cd path\to\systemguard\backend
-node server.js
+.\backend\Start-Backend.cmd
 ```
 
 Default URL:

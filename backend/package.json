@@ -2,7 +2,7 @@
   "name": "system-guardian-backend",
   "version": "1.3.0",
   "private": true,
-  "description": "Optional dependency-free service prototype for System Guardian.",
+  "description": "Optional dependency-free local service for System Guardian.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

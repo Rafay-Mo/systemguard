@@ -27,7 +27,7 @@ Windows APIs, Settings pages, DISM, SFC, and Defender
 | `src/desktop/SystemGuardianWebHost.cs` | Window lifecycle and WebView2 message bridge |
 | `src/desktop/SystemGuardianNative.cs` | Native checks, scoring, and approved Windows actions |
 | `data/` | Source-backed troubleshooting knowledge base; never executed directly |
-| `backend/` | Optional cloud-service prototype; it is not required by or wired into the current desktop release |
+| `backend/` | Optional local service; it is not required by or wired into the current desktop release |
 | `app/` | Generated runnable output; do not make source edits here |
 | `tests/` | Native scanner smoke tests |
 | `Release/` | Current downloadable package only |
