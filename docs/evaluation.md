@@ -54,7 +54,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\benchmark-scan.ps1
 - Isolation: one injected fault does not create unrelated findings.
 - Clean behavior across six healthy variants, including threshold values, Windows build labels, a large disk, a 12-entry startup load, and a browse-only optional update.
 - The real Windows probe can complete and return seven checks on the CI or developer machine.
-- The WebView2 command parser rejects malformed, oversized, unknown, and over-parameterized messages in a separate 47-assertion suite.
+- The WebView2 command parser rejects malformed, oversized, unknown, and over-parameterized messages in a suite with 81 hostile assertions across 10 attack classes, plus 21 valid-command assertions.
 
 ## What They Do Not Prove
 

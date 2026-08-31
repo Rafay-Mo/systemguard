@@ -115,12 +115,12 @@ internal sealed class SystemGuardianHostForm : Form
 
     private void OnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        if (!IsTrustedDocument(e.Uri)) e.Cancel = true;
+        if (!HostDocumentPolicy.IsTrustedDocument(trustedDocumentUri, e.Uri)) e.Cancel = true;
     }
 
     private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        if (!IsTrustedDocument(e.Source)) return;
+        if (!HostDocumentPolicy.IsTrustedDocument(trustedDocumentUri, e.Source)) return;
 
         string message;
         try { message = e.TryGetWebMessageAsString(); }
@@ -131,13 +131,6 @@ internal sealed class SystemGuardianHostForm : Form
         HandleCommand(command);
     }
 
-    private bool IsTrustedDocument(string source)
-    {
-        Uri candidate;
-        return trustedDocumentUri != null
-            && Uri.TryCreate(source, UriKind.Absolute, out candidate)
-            && string.Equals(candidate.AbsoluteUri, trustedDocumentUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
-    }
 
     private async void HandleCommand(HostCommand command)
     {

@@ -78,3 +78,14 @@ internal static class HostCommandParser
         return true;
     }
 }
+internal static class HostDocumentPolicy
+{
+    public static bool IsTrustedDocument(Uri trustedDocumentUri, string source)
+    {
+        Uri candidate;
+        return trustedDocumentUri != null
+            && !string.IsNullOrWhiteSpace(source)
+            && Uri.TryCreate(source, UriKind.Absolute, out candidate)
+            && string.Equals(candidate.AbsoluteUri, trustedDocumentUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+    }
+}

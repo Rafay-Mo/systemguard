@@ -1,5 +1,7 @@
 # System Guardian
 
+[![Windows build](https://github.com/Rafay-Mo/systemguard/actions/workflows/windows-build.yml/badge.svg)](https://github.com/Rafay-Mo/systemguard/actions/workflows/windows-build.yml)
+
 ## Problem
 
 A privileged native Windows host driven by a web renderer must expose useful diagnostics and remediation without turning renderer compromise into privileged command execution. System Guardian addresses that boundary while making a small, explicit set of Windows health checks understandable and actionable.
