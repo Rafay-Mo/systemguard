@@ -4,7 +4,7 @@
 
 Evaluation ran on August 31, 2026 on Windows 11 Home build 26200, a 13th Gen Intel Core i9-13950HX (32 logical processors), and 15.7 GB RAM. Detection tests inject state through `IGuardianSystemProbe`; they do not mutate the machine. The production smoke test separately proves that the real Windows probe returns all seven checks.
 
-Each broken fixture changes one input from a known-clean baseline. A detection passes only when the intended check returns the expected status and every unrelated check remains `good`. Two clean fixtures exercise normal values and exact healthy thresholds.
+Each broken fixture changes one input from a known-clean baseline. A detection passes only when the intended check returns the expected status and every unrelated check remains `good`. Six clean fixtures exercise normal values, exact healthy thresholds, Windows 10 and Windows 11 build labels, a legitimate 12-entry startup load, a large disk at 20% free, and a recently updated system with one browse-only optional update.
 
 ## Detection Matrix
 
@@ -12,6 +12,10 @@ Each broken fixture changes one input from a known-clean baseline. A detection p
 | --- | --- | --- | ---: |
 | Clean baseline | all good | yes | 0 |
 | Clean threshold boundaries | all good | yes | 0 |
+| Healthy Windows 10 22H2 laptop | all good | yes | 0 |
+| Healthy Windows 11 24H2 workstation | all good | yes | 0 |
+| Large disk with comfortable capacity | all good | yes | 0 |
+| Recently updated with one optional update | all good | yes | 0 |
 | Pending Windows updates | attention | yes | 0 |
 | Windows Update API unavailable | review | yes | 0 |
 | Defender antivirus off | attention | yes | 0 |
@@ -25,7 +29,7 @@ Each broken fixture changes one input from a known-clean baseline. A detection p
 | Windows Event Log stopped | attention | yes | 0 |
 | Windows Management Instrumentation stopped | attention | yes | 0 |
 
-Result: **12/12 broken states detected**. Clean-state result: **0 false positives across 14 clean check decisions** (two fixtures times seven checks).
+Result: **12/12 broken states detected** and **0 false positives across 18 fixture decisions (12 broken, 6 clean)**. The six clean fixtures yielded zero findings across 42 individual check results.
 
 ## Scan Latency
 
@@ -48,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\benchmark-scan.ps1
 
 - Decision thresholds and status mapping for the seven advertised checks.
 - Isolation: one injected fault does not create unrelated findings.
-- Clean threshold behavior at three-day Defender signatures, 15% free disk space, and 12 startup entries.
+- Clean behavior across six healthy variants, including threshold values, Windows build labels, a large disk, a 12-entry startup load, and a browse-only optional update.
 - The real Windows probe can complete and return seven checks on the CI or developer machine.
 - The WebView2 command parser rejects malformed, oversized, unknown, and over-parameterized messages in a separate 47-assertion suite.
 

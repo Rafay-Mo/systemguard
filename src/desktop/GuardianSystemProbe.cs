@@ -9,6 +9,7 @@ internal sealed class WindowsUpdateState
 {
     public bool Available { get; set; }
     public int PendingCount { get; set; }
+    public int OptionalPendingCount { get; set; }
 }
 
 internal sealed class DefenderState
@@ -69,7 +70,19 @@ internal sealed class WindowsGuardianSystemProbe : IGuardianSystemProbe
         dynamic session = Activator.CreateInstance(sessionType);
         dynamic searcher = session.CreateUpdateSearcher();
         dynamic result = searcher.Search("IsInstalled=0 and IsHidden=0");
-        return new WindowsUpdateState { Available = true, PendingCount = result.Updates.Count };
+        int actionable = 0;
+        int optional = 0;
+        for (int i = 0; i < result.Updates.Count; i++)
+        {
+            dynamic update = result.Updates.Item(i);
+            try
+            {
+                if (Convert.ToBoolean(update.BrowseOnly)) optional++;
+                else actionable++;
+            }
+            catch { actionable++; }
+        }
+        return new WindowsUpdateState { Available = true, PendingCount = actionable, OptionalPendingCount = optional };
     }
 
     public DefenderState ReadDefender()

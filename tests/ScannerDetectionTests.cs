@@ -15,7 +15,8 @@ internal static class ScannerDetectionTests
     private sealed class FakeProbe : IGuardianSystemProbe
     {
         public string DeviceName { get { return "fixture-pc"; } }
-        public string WindowsVersion { get { return "Windows fixture"; } }
+        public string WindowsVersionOverride = "Windows fixture";
+        public string WindowsVersion { get { return WindowsVersionOverride; } }
         public WindowsUpdateState Update = new WindowsUpdateState { Available = true, PendingCount = 0 };
         public DefenderState Defender = new DefenderState { Available = true, AntivirusEnabled = true, RealTimeProtectionEnabled = true, SignatureAgeDays = 0 };
         public IList<GuardianDriveState> Drives = new List<GuardianDriveState> { new GuardianDriveState { Name = "C:\\", AvailableFreeSpace = 30, TotalSize = 100 } };
@@ -39,6 +40,10 @@ internal static class ScannerDetectionTests
         {
             Clean("Clean baseline", delegate { }),
             Clean("Clean threshold boundaries", delegate(FakeProbe p) { p.Defender.SignatureAgeDays = 3; p.Drives[0].AvailableFreeSpace = 15; p.StartupEntries = 12; }),
+            Clean("Healthy Windows 10 22H2 laptop", delegate(FakeProbe p) { p.WindowsVersionOverride = "Windows 10 22H2"; p.StartupEntries = 12; }),
+            Clean("Healthy Windows 11 24H2 workstation", delegate(FakeProbe p) { p.WindowsVersionOverride = "Windows 11 24H2"; }),
+            Clean("Large disk with comfortable capacity", delegate(FakeProbe p) { p.Drives[0].TotalSize = 2000; p.Drives[0].AvailableFreeSpace = 400; }),
+            Clean("Recently updated with one optional update", delegate(FakeProbe p) { p.Update.OptionalPendingCount = 1; }),
             Broken("Pending Windows updates", "windows-update", "attention", delegate(FakeProbe p) { p.Update.PendingCount = 3; }),
             Broken("Windows Update API unavailable", "windows-update", "review", delegate(FakeProbe p) { p.Update.Available = false; }),
             Broken("Defender antivirus off", "defender", "attention", delegate(FakeProbe p) { p.Defender.AntivirusEnabled = false; }),
@@ -56,6 +61,7 @@ internal static class ScannerDetectionTests
         int detected = 0;
         int broken = 0;
         int cleanFalsePositives = 0;
+        int clean = 0;
         Console.WriteLine("| Condition | Expected | Detected | Other findings |");
         Console.WriteLine("| --- | --- | --- | ---: |");
         foreach (Fixture fixture in fixtures)
@@ -67,6 +73,7 @@ internal static class ScannerDetectionTests
             bool passed;
             if (fixture.Clean)
             {
+                clean++;
                 passed = findings == 0;
                 cleanFalsePositives += findings;
             }
@@ -82,7 +89,7 @@ internal static class ScannerDetectionTests
             if (!passed) return 1;
         }
 
-        Console.WriteLine("Detection: {0}/{1}; clean false positives: {2}.", detected, broken, cleanFalsePositives);
+        Console.WriteLine("Detection: {0}/{1}; clean fixtures: {2}; false positives: {3} across {4} fixture decisions.", detected, broken, clean, cleanFalsePositives, broken + clean);
         return detected == broken && cleanFalsePositives == 0 ? 0 : 2;
     }
 

@@ -24,12 +24,16 @@ The key trade-off is intentionally narrow remediation: the renderer can request 
 
 ## Evidence
 
-The automated matrix detected all 12 isolated broken states. Two clean fixtures produced zero false positives across 14 clean check decisions.
+The automated matrix detected all 12 isolated broken states: **0 false positives across 18 fixture decisions (12 broken, 6 clean)**. The six clean fixtures also produced zero findings across 42 individual check results.
 
 | Condition | Expected | Detected | Other findings |
 | --- | --- | --- | ---: |
 | Clean baseline | all good | yes | 0 |
 | Clean threshold boundaries | all good | yes | 0 |
+| Healthy Windows 10 22H2 laptop | all good | yes | 0 |
+| Healthy Windows 11 24H2 workstation | all good | yes | 0 |
+| Large disk with comfortable capacity | all good | yes | 0 |
+| Recently updated with one optional update | all good | yes | 0 |
 | Pending Windows updates | attention | yes | 0 |
 | Windows Update API unavailable | review | yes | 0 |
 | Defender antivirus off | attention | yes | 0 |
@@ -63,7 +67,7 @@ The health score starts at 100, subtracts 16 for each `attention` result and 7 f
 
 [![Windows build](https://github.com/Rafay-Mo/systemguard/actions/workflows/windows-build.yml/badge.svg)](https://github.com/Rafay-Mo/systemguard/actions/workflows/windows-build.yml)
 
-CI runs on `windows-latest`, compiles the desktop host, executes the real-probe smoke test, evaluates the 12 broken and two clean fixtures, runs 47 hostile command-boundary assertions, validates UI JavaScript and the troubleshooting knowledge base, checks backend syntax, and builds the release archive.
+CI runs on `windows-latest`, compiles the desktop host, executes the real-probe smoke test, evaluates the 12 broken and six clean fixtures, runs the grouped hostile command-boundary suite, validates UI JavaScript and the troubleshooting knowledge base, checks backend syntax, and builds the release archive.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
