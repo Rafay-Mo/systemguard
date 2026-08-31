@@ -3,8 +3,12 @@ name: Windows build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -23,8 +27,37 @@ jobs:
         shell: powershell
         run: .\scripts\build-release.ps1
 
-      - name: Upload Windows package
+      - name: Upload verified Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: SystemGuardian-Windows
-          path: Release/SystemGuardian-v*.zip
+          name: SystemGuardian-Windows-${{ github.sha }}
+          path: |
+            app/SystemGuardian.exe
+            Release/SystemGuardian-v*.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download verified Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: SystemGuardian-Windows-${{ github.sha }}
+          path: release-assets
+
+      - name: Publish GitHub Release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: |
+            release-assets/app/SystemGuardian.exe
+            release-assets/Release/SystemGuardian-v*.zip
+          fail_on_unmatched_files: true

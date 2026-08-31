@@ -8,4 +8,4 @@ Do not make source edits here. Edit `src/ui/` or `src/desktop/`, then run:
 .\scripts\build-desktop.ps1
 ```
 
-The WebView2 DLLs are checked in so the repository can build without restoring a NuGet package. The Microsoft Edge WebView2 Runtime must still be installed on the target PC.
+The build restores a pinned Microsoft WebView2 SDK package and verifies its SHA-256 checksum. The Microsoft Edge WebView2 Runtime must still be installed on the target PC.

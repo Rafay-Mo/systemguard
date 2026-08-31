@@ -18,6 +18,8 @@ if (-not (Test-Path -LiteralPath $uiSource)) {
     throw "Missing UI source: $uiSource"
 }
 
+& (Join-Path $root "scripts\restore-webview2.ps1")
+
 Copy-Item -LiteralPath $uiSource -Destination (Join-Path $app "SystemGuardianUI.html") -Force
 
 foreach ($file in @(

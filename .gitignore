@@ -22,6 +22,9 @@ obj/
 Debug/
 Release/tmp/
 Temp/
+app/*.dll
+app/*.exe
+Release/*.zip
 
 # Node/Next artifacts if UI source is copied in later
 node_modules/
