@@ -13,6 +13,7 @@ if ($version -notmatch '^\d+\.\d+\.\d+$') {
 
 & (Join-Path $root "scripts\verify.ps1")
 
+New-Item -ItemType Directory -Path $release -Force | Out-Null
 $resolvedRelease = (Resolve-Path $release).Path
 if (-not $stageRoot.StartsWith($resolvedRelease, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Unsafe release staging path."
