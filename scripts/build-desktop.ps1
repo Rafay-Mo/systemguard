@@ -4,6 +4,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $app = Join-Path $root "app"
 $uiSource = Join-Path $root "src\ui\SystemGuardianUI.html"
 $src = Join-Path $root "src\desktop\SystemGuardianWebHost.cs"
+$command = Join-Path $root "src\desktop\HostCommand.cs"
 $native = Join-Path $root "src\desktop\SystemGuardianNative.cs"
 $manifest = Join-Path $root "src\desktop\SystemGuardian.manifest"
 
@@ -40,6 +41,6 @@ foreach ($file in @(
     /reference:System.Web.Extensions.dll `
     /reference:"$(Join-Path $app 'Microsoft.Web.WebView2.Core.dll')" `
     /reference:"$(Join-Path $app 'Microsoft.Web.WebView2.WinForms.dll')" `
-    $src $native
+    $src $command $native
 
 Write-Host "Built app\SystemGuardian.exe and refreshed the runtime UI"

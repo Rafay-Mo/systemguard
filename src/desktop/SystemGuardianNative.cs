@@ -208,7 +208,7 @@ internal static class GuardianScanner
             || KeyExists(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired")
             || ValueExists(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations");
         return pending
-            ? Result("restart", "Restart status", "Stability", "review", "Windows is waiting for a restart.", "An update or system change has files waiting to finish at restart.", "Save your work and restart when convenient.", "Restart PC", true)
+            ? Result("restart", "Restart status", "Stability", "review", "Windows is waiting for a restart.", "An update or system change has files waiting to finish at restart.", "Open Windows Update, save your work, and choose Restart now when convenient.", "Open Update", true)
             : Result("restart", "Restart status", "Stability", "good", "No restart is pending.", "Windows is not reporting unfinished restart work.", "No action needed.", "Restart PC", false);
     }
 
@@ -224,7 +224,7 @@ internal static class GuardianScanner
         }
 
         return stopped.Count > 0
-            ? Result("core-services", "Core Windows services", "Stability", "attention", "An essential Windows service is stopped.", string.Join(" | ", stopped.ToArray()), "Restart Windows first. If the issue remains, run the Microsoft DISM and SFC repair tools.", "Repair Windows", true)
+            ? Result("core-services", "Core Windows services", "Stability", "attention", "An essential Windows service is stopped.", string.Join(" | ", stopped.ToArray()), "Open Windows troubleshooters and review recovery options. System Guardian will not change service state directly.", "Open Troubleshooting", true)
             : Result("core-services", "Core Windows services", "Stability", "good", "Core Windows services are running.", "Windows Event Log and Windows Management Instrumentation are active.", "No action needed.", "Repair Windows", false);
     }
 
@@ -285,19 +285,47 @@ internal static class GuardianScanner
 
 internal static class GuardianActions
 {
-    public static int GetAutomationLevel(string id)
+    public static bool IsAllowed(string id)
     {
         switch (id)
         {
-            case "restart": return 3;
-            case "core-services": return 2;
             case "windows-update":
             case "storage":
             case "startup":
             case "devices":
-            case "defender": return 1;
-            default: return 0;
+            case "defender":
+            case "restart":
+            case "core-services":
+                return true;
+            default:
+                return false;
         }
+    }
+
+    public static int GetAutomationLevel(string id)
+    {
+        return IsAllowed(id) ? 1 : 0;
+    }
+
+    public static string GetDisplayName(string id)
+    {
+        switch (id)
+        {
+            case "windows-update": return "Open Windows Update";
+            case "storage": return "Open Storage cleanup";
+            case "startup": return "Open Startup Apps";
+            case "devices": return "Open Device Manager";
+            case "defender": return "Open Windows Security";
+            case "restart": return "Open restart options";
+            case "core-services": return "Open Windows troubleshooters";
+            default: throw new ArgumentOutOfRangeException("id");
+        }
+    }
+
+    public static string GetConfirmation(string id)
+    {
+        if (!IsAllowed(id)) throw new ArgumentOutOfRangeException("id");
+        return "System Guardian will open a fixed built-in Windows tool. It will not make the change itself. Continue?";
     }
 
     public static string GetVerification(string id)
@@ -310,8 +338,8 @@ internal static class GuardianActions
             case "devices": return "Confirm the device error is gone in Device Manager, then scan again.";
             case "defender": return "Confirm Windows Security shows active protection, then scan again.";
             case "restart": return "After Windows starts again, run a fresh scan.";
-            case "core-services": return "Run a fresh scan and confirm the core-services finding is cleared.";
-            default: return "Run a fresh System Guardian scan after completing the action.";
+            case "core-services": return "After following the Windows troubleshooting guidance, run a fresh scan.";
+            default: throw new ArgumentOutOfRangeException("id");
         }
     }
 
@@ -335,46 +363,18 @@ internal static class GuardianActions
                 Open("windowsdefender:");
                 return "Windows Security opened. Restore recommended protection or check for updates.";
             case "restart":
-                Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 60 /c \"System Guardian repair restart\"") { UseShellExecute = false, CreateNoWindow = true });
-                return "Restart scheduled in 60 seconds. Run 'shutdown /a' to cancel.";
+                Open("ms-settings:windowsupdate");
+                return "Windows Update opened. Save your work before choosing Restart now.";
             case "core-services":
-                int dismExitCode = RunHidden("DISM.exe", "/Online /Cleanup-Image /RestoreHealth");
-                if (dismExitCode != 0)
-                {
-                    throw new InvalidOperationException("DISM could not complete successfully (exit code " + dismExitCode + "). No further repair was run.");
-                }
-
-                int sfcExitCode = RunHidden("sfc.exe", "/scannow");
-                if (sfcExitCode > 1)
-                {
-                    throw new InvalidOperationException("SFC could not complete successfully (exit code " + sfcExitCode + ").");
-                }
-
-                return "Microsoft DISM and SFC completed. Run a fresh scan to verify the result.";
+                Open("ms-settings:troubleshoot");
+                return "Windows troubleshooters opened. Review the available recovery guidance.";
             default:
-                return "No automatic action is available for this item.";
+                throw new ArgumentOutOfRangeException("id");
         }
     }
 
     private static void Open(string target)
     {
         Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-    }
-
-    private static int RunHidden(string fileName, string arguments)
-    {
-        using (Process process = Process.Start(new ProcessStartInfo
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        }))
-        {
-            if (process == null) throw new InvalidOperationException(fileName + " could not be started.");
-            process.WaitForExit();
-            return process.ExitCode;
-        }
     }
 }

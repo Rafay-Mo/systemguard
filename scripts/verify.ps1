@@ -8,6 +8,9 @@ if ($LASTEXITCODE -ne 0) { throw "Desktop build failed." }
 & (Join-Path $root "scripts\test-native.ps1")
 if ($LASTEXITCODE -ne 0) { throw "Native scanner verification failed." }
 
+& (Join-Path $root "scripts\test-host-boundary.ps1")
+if ($LASTEXITCODE -ne 0) { throw "Host command boundary verification failed." }
+
 & node (Join-Path $root "scripts\check-ui.js")
 if ($LASTEXITCODE -ne 0) { throw "UI verification failed." }
 

@@ -68,7 +68,7 @@ The native action layer owns all executable names, URI schemes, and arguments. T
 
 **Before:** repair IDs were allowlisted in native code, but only `restart` and `core-services` received a native confirmation. Other repair requests could be sent directly by a compromised renderer and would open their fixed Windows tools without a trustworthy approval prompt.
 
-**Changed:** pending in the next focused commit. The host will parse a typed, exact command schema, reject unknown fields and IDs, and obtain native approval for every repair request.
+**Changed:** the host now accepts only JSON objects matching an exact typed command schema, rejects unknown commands, extra fields, oversized messages, non-string IDs, and IDs outside the fixed native allowlist. Every repair request receives a native `MessageBox` approval before a tool opens. The `restart` and `core-services` actions were also changed from direct `shutdown`/DISM/SFC execution to opening fixed Windows Settings surfaces, preserving the built-in-tool-only remediation boundary.
 
 ## Controls Already Sound
 

@@ -1456,9 +1456,7 @@
         var levelLabel = level === 3 ? "Disruptive action" : level === 2 ? "Administrator repair" : level === 1 ? "Reversible action" : "Read-only action";
         byId("modalCategory").textContent = item.name + " · " + levelLabel;
         byId("modalDescription").textContent = item.action;
-        var warning = id === "restart" ? "Save your work first. Windows will ask again before the restart is scheduled." :
-          id === "core-services" ? "System Guardian will run Microsoft DISM and SFC without opening a terminal. Keep the app open until both checks finish." :
-          "System Guardian will open the official Windows tool for this action. You remain in control. " + item.verification;
+        var warning = "System Guardian will ask again in a native Windows dialog before opening this built-in tool. " + item.verification;
         byId("modalWarning").textContent = warning;
         byId("confirmRepair").textContent = item.actionLabel || "Continue";
         byId("repairModal").classList.add("open");
@@ -1558,11 +1556,11 @@
       byId("cancelRepair").addEventListener("click", closeRepair);
       byId("confirmRepair").addEventListener("click", confirmRepair);
       byId("repairModal").addEventListener("mousedown", function (event) { if (event.target === byId("repairModal")) closeRepair(); });
-      byId("minimizeWindow").addEventListener("click", function () { sendHost("window:minimize"); });
-      byId("maximizeWindow").addEventListener("click", function () { sendHost("window:maximize"); });
-      byId("closeWindow").addEventListener("click", function () { sendHost("window:close"); });
+      byId("minimizeWindow").addEventListener("click", function () { sendHost({ type: "window:minimize" }); });
+      byId("maximizeWindow").addEventListener("click", function () { sendHost({ type: "window:maximize" }); });
+      byId("closeWindow").addEventListener("click", function () { sendHost({ type: "window:close" }); });
       byId("titlebar").addEventListener("mousedown", function (event) {
-        if (!event.target.closest("button")) sendHost("window:drag");
+        if (!event.target.closest("button")) sendHost({ type: "window:drag" });
       });
       document.addEventListener("keydown", function (event) {
         if (event.key === "Escape") closeRepair();
