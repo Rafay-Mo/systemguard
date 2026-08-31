@@ -4,6 +4,7 @@ $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $output = Join-Path $root "tests\bin"
 $test = Join-Path $root "tests\HostCommandBoundaryTests.cs"
 $command = Join-Path $root "src\desktop\HostCommand.cs"
+$probe = Join-Path $root "src\desktop\GuardianSystemProbe.cs"
 $native = Join-Path $root "src\desktop\SystemGuardianNative.cs"
 $compiler = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 
@@ -14,7 +15,7 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
     /reference:System.Management.dll `
     /reference:System.ServiceProcess.dll `
     /reference:System.Web.Extensions.dll `
-    $test $command $native
+    $test $command $probe $native
 
 & (Join-Path $output "HostCommandBoundaryTests.exe")
 if ($LASTEXITCODE -ne 0) {
