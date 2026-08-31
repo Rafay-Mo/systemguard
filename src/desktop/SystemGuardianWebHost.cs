@@ -42,6 +42,7 @@ internal sealed class SystemGuardianHostForm : Form
 
     private readonly WebView2 webView;
     private readonly JavaScriptSerializer json = new JavaScriptSerializer();
+    private Uri trustedDocumentUri;
     private bool scanRunning;
 
     [DllImport("user32.dll")]
@@ -96,155 +97,131 @@ internal sealed class SystemGuardianHostForm : Form
         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
         webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+        webView.CoreWebView2.Settings.AreHostObjectsAllowed = false;
+        webView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+        trustedDocumentUri = new Uri(Path.GetFullPath(uiPath));
+        webView.CoreWebView2.NavigationStarting += OnNavigationStarting;
+        webView.CoreWebView2.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e)
+        {
+            e.Handled = true;
+        };
+        webView.CoreWebView2.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs e)
+        {
+            e.State = CoreWebView2PermissionState.Deny;
+        };
         webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
-        webView.CoreWebView2.Navigate(new Uri(uiPath).AbsoluteUri);
+        webView.CoreWebView2.Navigate(trustedDocumentUri.AbsoluteUri);
+    }
+
+    private void OnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (!HostDocumentPolicy.IsTrustedDocument(trustedDocumentUri, e.Uri)) e.Cancel = true;
     }
 
     private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        if (!HostDocumentPolicy.IsTrustedDocument(trustedDocumentUri, e.Source)) return;
+
         string message;
-        try
-        {
-            message = e.TryGetWebMessageAsString();
-        }
-        catch
-        {
-            message = string.Empty;
-        }
-
-        if (message.StartsWith("{"))
-        {
-            HandleAppMessage(message);
-            return;
-        }
-
-        switch (message)
-        {
-            case "window:minimize":
-                WindowState = FormWindowState.Minimized;
-                break;
-            case "window:maximize":
-                WindowState = WindowState == FormWindowState.Maximized
-                    ? FormWindowState.Normal
-                    : FormWindowState.Maximized;
-                break;
-            case "window:close":
-                Close();
-                break;
-            case "window:drag":
-                if (WindowState == FormWindowState.Maximized)
-                {
-                    WindowState = FormWindowState.Normal;
-                }
-
-                ReleaseCapture();
-                SendMessage(Handle, WmNclButtonDown, HtCaption, 0);
-                break;
-        }
-    }
-
-    private async void HandleAppMessage(string message)
-    {
-        Dictionary<string, object> request;
-        try { request = json.Deserialize<Dictionary<string, object>>(message); }
+        try { message = e.TryGetWebMessageAsString(); }
         catch { return; }
 
-        object typeValue;
-        if (!request.TryGetValue("type", out typeValue)) return;
-        string type = Convert.ToString(typeValue);
+        HostCommand command;
+        if (!HostCommandParser.TryParse(message, out command)) return;
+        HandleCommand(command);
+    }
 
-        if (type == "app:ready")
-        {
-            PostToUi(new
-            {
-                type = "host:ready",
-                payload = new
-                {
-                    deviceName = Environment.MachineName,
-                    isAdmin = IsAdministrator()
-                }
-            });
-            return;
-        }
 
-        if (type == "scan:start" && !scanRunning)
+    private async void HandleCommand(HostCommand command)
+    {
+        switch (command.Type)
         {
-            scanRunning = true;
-            try
-            {
-                GuardianReport report = await Task.Run(delegate
+            case HostCommandType.WindowMinimize:
+                WindowState = FormWindowState.Minimized;
+                return;
+            case HostCommandType.WindowMaximize:
+                WindowState = WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+                return;
+            case HostCommandType.WindowClose:
+                Close();
+                return;
+            case HostCommandType.WindowDrag:
+                if (WindowState == FormWindowState.Maximized) WindowState = FormWindowState.Normal;
+                ReleaseCapture();
+                SendMessage(Handle, WmNclButtonDown, HtCaption, 0);
+                return;
+            case HostCommandType.AppReady:
+                PostToUi(new
                 {
-                    return GuardianScanner.Run(delegate(int percent, string label)
-                    {
-                        BeginInvoke(new Action(delegate
-                        {
-                            PostToUi(new { type = "scan:progress", payload = new { progress = percent, label = label } });
-                        }));
-                    });
+                    type = "host:ready",
+                    payload = new { deviceName = Environment.MachineName, isAdmin = IsAdministrator() }
                 });
-                PostToUi(new { type = "scan:complete", payload = report });
-            }
-            catch (Exception ex)
-            {
-                PostToUi(new { type = "scan:error", payload = new { message = ex.Message } });
-            }
-            finally { scanRunning = false; }
-            return;
-        }
-
-        if (type == "fix:run")
-        {
-            object idValue;
-            if (!request.TryGetValue("id", out idValue)) return;
-            string id = Convert.ToString(idValue);
-            try
-            {
-                if (id == "restart")
-                {
-                    DialogResult answer = MessageBox.Show(this, "Save your work first. Restart this PC in 60 seconds?", "Restart Windows", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-                    if (answer != DialogResult.Yes)
-                    {
-                        RepairAuditLog.Write(id, GuardianActions.GetAutomationLevel(id), "cancelled", "Restart confirmation was declined.");
-                        PostToUi(new { type = "fix:cancelled", payload = new { id = id } });
-                        return;
-                    }
-                }
-
-                if (id == "core-services")
-                {
-                    DialogResult answer = MessageBox.Show(this, "System Guardian will run Microsoft's DISM and SFC repair tools in the background. The repair can take a while. Keep the app open until it finishes. Continue?", "Repair Windows", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                    if (answer != DialogResult.Yes)
-                    {
-                        RepairAuditLog.Write(id, GuardianActions.GetAutomationLevel(id), "cancelled", "Administrator repair confirmation was declined.");
-                        PostToUi(new { type = "fix:cancelled", payload = new { id = id } });
-                        return;
-                    }
-                }
-
-                int level = GuardianActions.GetAutomationLevel(id);
-                RepairAuditLog.Write(id, level, "approved", "The user approved the allowlisted action.");
-                string result;
-                if (id == "core-services")
-                {
-                    PostToUi(new { type = "fix:progress", payload = new { id = id, message = "Repairing Windows system files. This can take several minutes." } });
-                    result = await Task.Run(delegate { return GuardianActions.Run(id); });
-                }
-                else
-                {
-                    result = GuardianActions.Run(id);
-                }
-
-                RepairAuditLog.Write(id, level, "completed", result);
-                PostToUi(new { type = "fix:complete", payload = new { id = id, message = result, verification = GuardianActions.GetVerification(id) } });
-            }
-            catch (Exception ex)
-            {
-                RepairAuditLog.Write(id, GuardianActions.GetAutomationLevel(id), "failed", ex.Message);
-                PostToUi(new { type = "fix:error", payload = new { id = id, message = ex.Message } });
-            }
+                return;
+            case HostCommandType.ScanStart:
+                if (scanRunning) return;
+                await RunScanAsync();
+                return;
+            case HostCommandType.FixRun:
+                RunApprovedAction(command.RepairId);
+                return;
+            default:
+                return;
         }
     }
 
+    private async Task RunScanAsync()
+    {
+        scanRunning = true;
+        try
+        {
+            GuardianReport report = await Task.Run(delegate
+            {
+                return GuardianScanner.Run(delegate(int percent, string label)
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        PostToUi(new { type = "scan:progress", payload = new { progress = percent, label = label } });
+                    }));
+                });
+            });
+            PostToUi(new { type = "scan:complete", payload = report });
+        }
+        catch (Exception ex)
+        {
+            PostToUi(new { type = "scan:error", payload = new { message = ex.Message } });
+        }
+        finally { scanRunning = false; }
+    }
+
+    private void RunApprovedAction(string id)
+    {
+        DialogResult answer = MessageBox.Show(
+            this,
+            GuardianActions.GetConfirmation(id),
+            GuardianActions.GetDisplayName(id),
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Information);
+        if (answer != DialogResult.Yes)
+        {
+            RepairAuditLog.Write(id, GuardianActions.GetAutomationLevel(id), "cancelled", "Native approval was declined.");
+            PostToUi(new { type = "fix:cancelled", payload = new { id = id } });
+            return;
+        }
+
+        try
+        {
+            int level = GuardianActions.GetAutomationLevel(id);
+            RepairAuditLog.Write(id, level, "approved", "The user approved the allowlisted action in the native host.");
+            string result = GuardianActions.Run(id);
+            RepairAuditLog.Write(id, level, "completed", result);
+            PostToUi(new { type = "fix:complete", payload = new { id = id, message = result, verification = GuardianActions.GetVerification(id) } });
+        }
+        catch (Exception ex)
+        {
+            RepairAuditLog.Write(id, GuardianActions.GetAutomationLevel(id), "failed", ex.Message);
+            PostToUi(new { type = "fix:error", payload = new { id = id, message = ex.Message } });
+        }
+    }
     private void PostToUi(object payload)
     {
         if (webView.CoreWebView2 == null) return;

@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Management;
 using System.ServiceProcess;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 
 internal sealed class GuardianCheck
@@ -44,22 +46,58 @@ internal sealed class GuardianReport
 
 internal static class GuardianScanner
 {
+    private sealed class CheckDefinition
+    {
+        public string Id;
+        public string Name;
+        public string Category;
+        public Func<IGuardianSystemProbe, GuardianCheck> Run;
+    }
+
     public static GuardianReport Run(Action<int, string> progress)
     {
+        return Run(new WindowsGuardianSystemProbe(), progress);
+    }
+
+    internal static GuardianReport Run(IGuardianSystemProbe probe, Action<int, string> progress)
+    {
+        if (probe == null) throw new ArgumentNullException("probe");
+        if (progress == null) progress = delegate { };
+
         var report = new GuardianReport
         {
             GeneratedAt = DateTime.Now.ToString("o"),
-            DeviceName = Environment.MachineName,
-            WindowsVersion = ReadWindowsVersion()
+            DeviceName = probe.DeviceName,
+            WindowsVersion = probe.WindowsVersion
         };
 
-        Add(report, progress, 8, "Checking Windows Update", CheckWindowsUpdate);
-        Add(report, progress, 23, "Reading Microsoft Defender status", CheckDefender);
-        Add(report, progress, 39, "Measuring available storage", CheckStorage);
-        Add(report, progress, 54, "Reviewing startup load", CheckStartup);
-        Add(report, progress, 69, "Checking devices and drivers", CheckDevices);
-        Add(report, progress, 84, "Checking restart status", CheckRestart);
-        Add(report, progress, 96, "Verifying core Windows services", CheckCoreServices);
+        CheckDefinition[] definitions =
+        {
+            new CheckDefinition { Id = "windows-update", Name = "Windows Update", Category = "Updates", Run = CheckWindowsUpdate },
+            new CheckDefinition { Id = "defender", Name = "Microsoft Defender", Category = "Security", Run = CheckDefender },
+            new CheckDefinition { Id = "storage", Name = "Storage space", Category = "Performance", Run = CheckStorage },
+            new CheckDefinition { Id = "startup", Name = "Startup apps", Category = "Performance", Run = CheckStartup },
+            new CheckDefinition { Id = "devices", Name = "Devices and drivers", Category = "Stability", Run = CheckDevices },
+            new CheckDefinition { Id = "restart", Name = "Restart status", Category = "Stability", Run = CheckRestart },
+            new CheckDefinition { Id = "core-services", Name = "Core Windows services", Category = "Stability", Run = CheckCoreServices }
+        };
+
+        var results = new GuardianCheck[definitions.Length];
+        var tasks = new Task[definitions.Length];
+        int completed = 0;
+        for (int i = 0; i < definitions.Length; i++)
+        {
+            int index = i;
+            tasks[index] = Task.Factory.StartNew(delegate
+            {
+                results[index] = RunCheck(definitions[index], probe);
+                int done = Interlocked.Increment(ref completed);
+                progress(done * 96 / definitions.Length, "Completed " + definitions[index].Name);
+            });
+        }
+
+        Task.WaitAll(tasks);
+        report.Checks.AddRange(results);
 
         int deductions = 0;
         foreach (GuardianCheck check in report.Checks)
@@ -73,86 +111,72 @@ internal static class GuardianScanner
         return report;
     }
 
-    private static void Add(GuardianReport report, Action<int, string> progress, int percent, string label, Func<GuardianCheck> check)
+    private static GuardianCheck RunCheck(CheckDefinition definition, IGuardianSystemProbe probe)
     {
-        progress(percent, label);
-        try
-        {
-            report.Checks.Add(check());
-        }
+        try { return definition.Run(probe); }
         catch (Exception ex)
         {
-            report.Checks.Add(Result(
-                label.ToLowerInvariant().Replace(" ", "-"),
-                label.Replace("Checking ", ""),
-                "System",
+            return Result(
+                definition.Id,
+                definition.Name,
+                definition.Category,
                 "review",
                 "This check could not be completed.",
                 ex.Message,
                 "Run the app as administrator and scan again.",
                 "Review",
-                false));
+                false);
         }
     }
 
-    private static GuardianCheck CheckWindowsUpdate()
+    private static GuardianCheck CheckWindowsUpdate(IGuardianSystemProbe probe)
     {
-        Type sessionType = Type.GetTypeFromProgID("Microsoft.Update.Session");
-        if (sessionType == null)
+        WindowsUpdateState state = probe.ReadWindowsUpdate();
+        if (state == null || !state.Available)
         {
             return Result("windows-update", "Windows Update", "Updates", "review", "Windows Update was not available for this scan.", "The Windows Update API could not be opened.", "Open Windows Update and check manually.", "Open Update", true);
         }
-
-        dynamic session = Activator.CreateInstance(sessionType);
-        dynamic searcher = session.CreateUpdateSearcher();
-        dynamic result = searcher.Search("IsInstalled=0 and IsHidden=0");
-        int count = result.Updates.Count;
-        if (count == 0)
+        if (state.PendingCount == 0)
         {
             return Result("windows-update", "Windows Update", "Updates", "good", "Windows is up to date.", "No visible pending updates were returned by Windows Update.", "No action needed.", "Open Update", false);
         }
-
-        return Result("windows-update", "Windows Update", "Updates", "attention", count + " update" + (count == 1 ? " is" : "s are") + " waiting.", "Installing current updates can improve stability and security.", "Open Windows Update, install the pending updates, then restart when convenient.", "Open Update", true);
+        return Result("windows-update", "Windows Update", "Updates", "attention", state.PendingCount + " update" + (state.PendingCount == 1 ? " is" : "s are") + " waiting.", "Installing current updates can improve stability and security.", "Open Windows Update, install the pending updates, then restart when convenient.", "Open Update", true);
     }
 
-    private static GuardianCheck CheckDefender()
+    private static GuardianCheck CheckDefender(IGuardianSystemProbe probe)
     {
-        using (var searcher = new ManagementObjectSearcher(@"root\Microsoft\Windows\Defender", "SELECT AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge FROM MSFT_MpComputerStatus"))
+        DefenderState state = probe.ReadDefender();
+        if (state == null || !state.Available)
         {
-            foreach (ManagementObject row in searcher.Get())
-            {
-                bool antivirus = Convert.ToBoolean(row["AntivirusEnabled"]);
-                bool realtime = Convert.ToBoolean(row["RealTimeProtectionEnabled"]);
-                int age = Convert.ToInt32(row["AntivirusSignatureAge"]);
-                if (!antivirus || !realtime)
-                {
-                    return Result("defender", "Microsoft Defender", "Security", "attention", "Windows protection needs attention.", "Antivirus or real-time protection is not reporting as active.", "Open Windows Security and restore the recommended protection settings.", "Open Security", true);
-                }
-
-                if (age > 3)
-                {
-                    return Result("defender", "Microsoft Defender", "Security", "review", "Security intelligence is out of date.", "Defender definitions are " + age + " days old.", "Update Microsoft Defender security intelligence.", "Update Defender", true);
-                }
-
-                return Result("defender", "Microsoft Defender", "Security", "good", "Microsoft Defender is protecting this PC.", "Antivirus, real-time protection, and security intelligence look current.", "No action needed.", "Open Security", false);
-            }
+            return Result("defender", "Microsoft Defender", "Security", "review", "Defender status was unavailable.", "No Defender status was returned. This can happen when another antivirus product is active.", "Open Windows Security and confirm that a security provider is active.", "Open Security", true);
         }
-
-        return Result("defender", "Microsoft Defender", "Security", "review", "Defender status was unavailable.", "No Defender status was returned. This can happen when another antivirus product is active.", "Open Windows Security and confirm that a security provider is active.", "Open Security", true);
+        if (!state.AntivirusEnabled || !state.RealTimeProtectionEnabled)
+        {
+            return Result("defender", "Microsoft Defender", "Security", "attention", "Windows protection needs attention.", "Antivirus or real-time protection is not reporting as active.", "Open Windows Security and restore the recommended protection settings.", "Open Security", true);
+        }
+        if (state.SignatureAgeDays > 3)
+        {
+            return Result("defender", "Microsoft Defender", "Security", "review", "Security intelligence is out of date.", "Defender definitions are " + state.SignatureAgeDays + " days old.", "Update Microsoft Defender security intelligence.", "Update Defender", true);
+        }
+        return Result("defender", "Microsoft Defender", "Security", "good", "Microsoft Defender is protecting this PC.", "Antivirus, real-time protection, and security intelligence look current.", "No action needed.", "Open Security", false);
     }
 
-    private static GuardianCheck CheckStorage()
+    private static GuardianCheck CheckStorage(IGuardianSystemProbe probe)
     {
+        IList<GuardianDriveState> drives = probe.ReadFixedDrives();
         var low = new List<string>();
         var details = new List<string>();
         double lowest = 100;
-        foreach (DriveInfo drive in DriveInfo.GetDrives())
+        if (drives != null)
         {
-            if (drive.DriveType != DriveType.Fixed || !drive.IsReady || drive.TotalSize == 0) continue;
-            double freePercent = drive.AvailableFreeSpace * 100d / drive.TotalSize;
-            lowest = Math.Min(lowest, freePercent);
-            details.Add(drive.Name + " " + Math.Round(freePercent) + "% free");
-            if (freePercent < 15) low.Add(drive.Name);
+            foreach (GuardianDriveState drive in drives)
+            {
+                if (drive == null || drive.TotalSize <= 0) continue;
+                double freePercent = drive.AvailableFreeSpace * 100d / drive.TotalSize;
+                lowest = Math.Min(lowest, freePercent);
+                details.Add(drive.Name + " " + Math.Round(freePercent) + "% free");
+                if (freePercent < 15) low.Add(drive.Name);
+            }
         }
 
         string detail = details.Count == 0 ? "No fixed drive details were available." : string.Join(" | ", details.ToArray());
@@ -160,71 +184,45 @@ internal static class GuardianScanner
         {
             return Result("storage", "Storage space", "Performance", lowest < 8 ? "attention" : "review", "A drive is running low on space.", detail, "Use Windows cleanup recommendations to remove temporary files safely.", "Clean Storage", true);
         }
-
         return Result("storage", "Storage space", "Performance", "good", "Your drives have comfortable free space.", detail, "No action needed.", "Open Storage", false);
     }
 
-    private static GuardianCheck CheckStartup()
+    private static GuardianCheck CheckStartup(IGuardianSystemProbe probe)
     {
-        int count = 0;
-        count += CountRegistryValues(Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Run");
-        count += CountRegistryValues(Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Run");
-        count += CountRegistryValues(Registry.LocalMachine, @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run");
-        count += CountFiles(Environment.GetFolderPath(Environment.SpecialFolder.Startup));
-        count += CountFiles(Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup));
-
+        int count = probe.ReadStartupEntryCount();
         if (count > 12)
         {
             return Result("startup", "Startup apps", "Performance", "review", count + " apps may start with Windows.", "A large startup list can make sign-in feel slower.", "Review the Startup Apps page and disable only apps you recognize and do not need immediately.", "Review Startup", true);
         }
-
         return Result("startup", "Startup apps", "Performance", "good", "Startup load looks reasonable.", count + " startup entries were found.", "No action needed.", "Review Startup", false);
     }
 
-    private static GuardianCheck CheckDevices()
+    private static GuardianCheck CheckDevices(IGuardianSystemProbe probe)
     {
-        int errors = 0;
-        var names = new List<string>();
-        using (var searcher = new ManagementObjectSearcher("SELECT Name,ConfigManagerErrorCode FROM Win32_PnPEntity WHERE ConfigManagerErrorCode <> 0"))
+        IList<string> errors = probe.ReadDeviceErrors();
+        int count = errors == null ? 0 : errors.Count;
+        if (count > 0)
         {
-            foreach (ManagementObject row in searcher.Get())
-            {
-                errors++;
-                if (names.Count < 3) names.Add(Convert.ToString(row["Name"]));
-            }
+            var names = new List<string>();
+            for (int i = 0; i < count && i < 3; i++) names.Add(errors[i]);
+            return Result("devices", "Devices and drivers", "Stability", "review", count + " device" + (count == 1 ? " needs" : "s need") + " review.", names.Count == 0 ? "Windows reported a device error." : string.Join(" | ", names.ToArray()), "Open Device Manager and use Windows Update or the hardware maker's official driver.", "Open Devices", true);
         }
-
-        if (errors > 0)
-        {
-            return Result("devices", "Devices and drivers", "Stability", "review", errors + " device" + (errors == 1 ? " needs" : "s need") + " review.", names.Count == 0 ? "Windows reported a device error." : string.Join(" | ", names.ToArray()), "Open Device Manager and use Windows Update or the hardware maker's official driver.", "Open Devices", true);
-        }
-
         return Result("devices", "Devices and drivers", "Stability", "good", "Windows reports no device errors.", "Device Manager returned no active error codes.", "No action needed.", "Open Devices", false);
     }
 
-    private static GuardianCheck CheckRestart()
+    private static GuardianCheck CheckRestart(IGuardianSystemProbe probe)
     {
-        bool pending = KeyExists(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending")
-            || KeyExists(Registry.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired")
-            || ValueExists(Registry.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations");
-        return pending
-            ? Result("restart", "Restart status", "Stability", "review", "Windows is waiting for a restart.", "An update or system change has files waiting to finish at restart.", "Save your work and restart when convenient.", "Restart PC", true)
+        return probe.ReadRestartPending()
+            ? Result("restart", "Restart status", "Stability", "review", "Windows is waiting for a restart.", "An update or system change has files waiting to finish at restart.", "Open Windows Update, save your work, and choose Restart now when convenient.", "Open Update", true)
             : Result("restart", "Restart status", "Stability", "good", "No restart is pending.", "Windows is not reporting unfinished restart work.", "No action needed.", "Restart PC", false);
     }
 
-    private static GuardianCheck CheckCoreServices()
+    private static GuardianCheck CheckCoreServices(IGuardianSystemProbe probe)
     {
-        var stopped = new List<string>();
-        foreach (string serviceName in new[] { "EventLog", "Winmgmt" })
-        {
-            using (var service = new ServiceController(serviceName))
-            {
-                if (service.Status != ServiceControllerStatus.Running) stopped.Add(service.DisplayName);
-            }
-        }
-
-        return stopped.Count > 0
-            ? Result("core-services", "Core Windows services", "Stability", "attention", "An essential Windows service is stopped.", string.Join(" | ", stopped.ToArray()), "Restart Windows first. If the issue remains, run the Microsoft DISM and SFC repair tools.", "Repair Windows", true)
+        IList<string> stopped = probe.ReadStoppedCoreServices();
+        int count = stopped == null ? 0 : stopped.Count;
+        return count > 0
+            ? Result("core-services", "Core Windows services", "Stability", "attention", "An essential Windows service is stopped.", string.Join(" | ", new List<string>(stopped).ToArray()), "Open Windows troubleshooters and review recovery options. System Guardian will not change service state directly.", "Open Troubleshooting", true)
             : Result("core-services", "Core Windows services", "Stability", "good", "Core Windows services are running.", "Windows Event Log and Windows Management Instrumentation are active.", "No action needed.", "Repair Windows", false);
     }
 
@@ -245,59 +243,50 @@ internal static class GuardianScanner
             Verification = GuardianActions.GetVerification(id)
         };
     }
-
-    private static int CountRegistryValues(RegistryKey root, string path)
-    {
-        using (RegistryKey key = root.OpenSubKey(path)) return key == null ? 0 : key.GetValueNames().Length;
-    }
-
-    private static int CountFiles(string path)
-    {
-        try { return Directory.Exists(path) ? Directory.GetFiles(path).Length : 0; }
-        catch { return 0; }
-    }
-
-    private static bool KeyExists(RegistryKey root, string path)
-    {
-        using (RegistryKey key = root.OpenSubKey(path)) return key != null;
-    }
-
-    private static bool ValueExists(RegistryKey root, string path, string name)
-    {
-        using (RegistryKey key = root.OpenSubKey(path)) return key != null && key.GetValue(name) != null;
-    }
-
-    private static string ReadWindowsVersion()
-    {
-        try
-        {
-            using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
-            {
-                if (key == null) return "Windows";
-                string product = Convert.ToString(key.GetValue("ProductName", "Windows"));
-                string display = Convert.ToString(key.GetValue("DisplayVersion", ""));
-                return (product + " " + display).Trim();
-            }
-        }
-        catch { return "Windows"; }
-    }
 }
-
 internal static class GuardianActions
 {
-    public static int GetAutomationLevel(string id)
+    public static bool IsAllowed(string id)
     {
         switch (id)
         {
-            case "restart": return 3;
-            case "core-services": return 2;
             case "windows-update":
             case "storage":
             case "startup":
             case "devices":
-            case "defender": return 1;
-            default: return 0;
+            case "defender":
+            case "restart":
+            case "core-services":
+                return true;
+            default:
+                return false;
         }
+    }
+
+    public static int GetAutomationLevel(string id)
+    {
+        return IsAllowed(id) ? 1 : 0;
+    }
+
+    public static string GetDisplayName(string id)
+    {
+        switch (id)
+        {
+            case "windows-update": return "Open Windows Update";
+            case "storage": return "Open Storage cleanup";
+            case "startup": return "Open Startup Apps";
+            case "devices": return "Open Device Manager";
+            case "defender": return "Open Windows Security";
+            case "restart": return "Open restart options";
+            case "core-services": return "Open Windows troubleshooters";
+            default: throw new ArgumentOutOfRangeException("id");
+        }
+    }
+
+    public static string GetConfirmation(string id)
+    {
+        if (!IsAllowed(id)) throw new ArgumentOutOfRangeException("id");
+        return "System Guardian will open a fixed built-in Windows tool. It will not make the change itself. Continue?";
     }
 
     public static string GetVerification(string id)
@@ -310,8 +299,8 @@ internal static class GuardianActions
             case "devices": return "Confirm the device error is gone in Device Manager, then scan again.";
             case "defender": return "Confirm Windows Security shows active protection, then scan again.";
             case "restart": return "After Windows starts again, run a fresh scan.";
-            case "core-services": return "Run a fresh scan and confirm the core-services finding is cleared.";
-            default: return "Run a fresh System Guardian scan after completing the action.";
+            case "core-services": return "After following the Windows troubleshooting guidance, run a fresh scan.";
+            default: throw new ArgumentOutOfRangeException("id");
         }
     }
 
@@ -335,46 +324,18 @@ internal static class GuardianActions
                 Open("windowsdefender:");
                 return "Windows Security opened. Restore recommended protection or check for updates.";
             case "restart":
-                Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 60 /c \"System Guardian repair restart\"") { UseShellExecute = false, CreateNoWindow = true });
-                return "Restart scheduled in 60 seconds. Run 'shutdown /a' to cancel.";
+                Open("ms-settings:windowsupdate");
+                return "Windows Update opened. Save your work before choosing Restart now.";
             case "core-services":
-                int dismExitCode = RunHidden("DISM.exe", "/Online /Cleanup-Image /RestoreHealth");
-                if (dismExitCode != 0)
-                {
-                    throw new InvalidOperationException("DISM could not complete successfully (exit code " + dismExitCode + "). No further repair was run.");
-                }
-
-                int sfcExitCode = RunHidden("sfc.exe", "/scannow");
-                if (sfcExitCode > 1)
-                {
-                    throw new InvalidOperationException("SFC could not complete successfully (exit code " + sfcExitCode + ").");
-                }
-
-                return "Microsoft DISM and SFC completed. Run a fresh scan to verify the result.";
+                Open("ms-settings:troubleshoot");
+                return "Windows troubleshooters opened. Review the available recovery guidance.";
             default:
-                return "No automatic action is available for this item.";
+                throw new ArgumentOutOfRangeException("id");
         }
     }
 
     private static void Open(string target)
     {
         Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-    }
-
-    private static int RunHidden(string fileName, string arguments)
-    {
-        using (Process process = Process.Start(new ProcessStartInfo
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden
-        }))
-        {
-            if (process == null) throw new InvalidOperationException(fileName + " could not be started.");
-            process.WaitForExit();
-            return process.ExitCode;
-        }
     }
 }

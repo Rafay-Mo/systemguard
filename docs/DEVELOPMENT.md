@@ -7,7 +7,7 @@
 - Microsoft Edge WebView2 Runtime
 - Node.js for the optional UI preview and UI syntax check
 
-No NuGet or npm install is required for the current desktop build.
+No npm install is required. The build restores a checksum-pinned Microsoft WebView2 NuGet package when its generated runtime DLLs are absent.
 
 ## Start Here
 
@@ -48,10 +48,11 @@ node .\scripts\preview-ui.js
 ## Release Process
 
 1. Update `VERSION`.
-2. Update the manifest assembly version when making a versioned release.
-3. Run `scripts/build-release.ps1`.
-4. Confirm `Release/` contains only the new package.
-5. Commit source, generated runtime files, and the package together.
+2. Update `RELEASE_NOTES.md` with the release-specific changes.
+3. Update the manifest assembly version when making a versioned release.
+4. Run `scripts/build-release.ps1` locally and verify the generated package.
+5. Commit source changes only; generated EXEs, DLLs, and ZIPs remain ignored.
+6. Tag the merge commit as `v<version>` and push the tag. CI verifies the source and attaches the generated EXE and ZIP to the GitHub Release.
 
 ## Current Product Boundary
 
