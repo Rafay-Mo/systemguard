@@ -42,6 +42,7 @@ internal sealed class SystemGuardianHostForm : Form
 
     private readonly WebView2 webView;
     private readonly JavaScriptSerializer json = new JavaScriptSerializer();
+    private Uri trustedDocumentUri;
     private bool scanRunning;
 
     [DllImport("user32.dll")]
@@ -96,13 +97,32 @@ internal sealed class SystemGuardianHostForm : Form
         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
         webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
         webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+        webView.CoreWebView2.Settings.AreHostObjectsAllowed = false;
+        webView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+        trustedDocumentUri = new Uri(Path.GetFullPath(uiPath));
+        webView.CoreWebView2.NavigationStarting += OnNavigationStarting;
+        webView.CoreWebView2.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e)
+        {
+            e.Handled = true;
+        };
+        webView.CoreWebView2.PermissionRequested += delegate(object sender, CoreWebView2PermissionRequestedEventArgs e)
+        {
+            e.State = CoreWebView2PermissionState.Deny;
+        };
         webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
-        webView.CoreWebView2.Navigate(new Uri(uiPath).AbsoluteUri);
+        webView.CoreWebView2.Navigate(trustedDocumentUri.AbsoluteUri);
+    }
+
+    private void OnNavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (!IsTrustedDocument(e.Uri)) e.Cancel = true;
     }
 
     private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         string message;
+        if (!IsTrustedDocument(e.Source)) return;
+
         try
         {
             message = e.TryGetWebMessageAsString();
@@ -143,6 +163,14 @@ internal sealed class SystemGuardianHostForm : Form
         }
     }
 
+
+    private bool IsTrustedDocument(string source)
+    {
+        Uri candidate;
+        return trustedDocumentUri != null
+            && Uri.TryCreate(source, UriKind.Absolute, out candidate)
+            && string.Equals(candidate.AbsoluteUri, trustedDocumentUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+    }
     private async void HandleAppMessage(string message)
     {
         Dictionary<string, object> request;
